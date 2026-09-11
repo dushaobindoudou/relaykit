@@ -12,13 +12,22 @@ import { balanceTransactions, sessions, users, type User } from "@/db/schema";
 import type { RelayKitContext } from "@/runtime/context";
 
 /**
- * 迭代次数。
+ * 迭代参数。
  *
- * Workers 单次请求有 CPU 时间上限，这个值是「足够慢」与「登录不超时」之间的
- * 折中。提高它会同时提高安全性与登录耗时；降低它请三思。
- * 调整后**旧口令仍可校验** —— 迭代次数写在哈希串里，见 encode/decode。
+ * **Cloudflare Workers 把单次 PBKDF2 的迭代次数硬上限设在 100000**
+ * （超过会抛 NotSupportedError: iteration counts above 100000 are not supported）。
+ * 这是平台约束，不是可调项 —— 而且 Node 上没有这个限制，所以只跑单测发现不了，
+ * 必须在真实运行时上验证。
+ *
+ * 单轮 10 万低于 OWASP 对 PBKDF2-SHA256 的建议值，所以用**多轮串联**补足：
+ * 每轮的输出作为下一轮的输入口令，总工作量等于 ROUNDS × ITERATIONS。
+ * 攻击者无法跳过中间轮次，所以串联的成本是可加的。
+ *
+ * 两个参数都写进哈希串，日后调整不会让旧口令失效。
  */
-const PBKDF2_ITERATIONS = 210_000;
+const PBKDF2_ITERATIONS = 100_000;
+const PBKDF2_ROUNDS = 3;
+
 const SESSION_DAYS = 30;
 
 function toHex(buffer: ArrayBuffer): string {
@@ -33,7 +42,7 @@ function fromHex(hex: string): Uint8Array {
   return bytes;
 }
 
-async function derive(
+async function deriveOnce(
   password: string,
   salt: Uint8Array,
   iterations: number,
@@ -53,21 +62,41 @@ async function derive(
   return toHex(bits);
 }
 
-/** 哈希串格式：pbkdf2$迭代次数$盐$派生值。迭代次数内嵌，便于日后调参而不废旧口令。 */
+async function derive(
+  password: string,
+  salt: Uint8Array,
+  iterations: number,
+  rounds: number,
+): Promise<string> {
+  let value = password;
+  for (let i = 0; i < rounds; i += 1) {
+    value = await deriveOnce(value, salt, iterations);
+  }
+  return value;
+}
+
+/** 哈希串格式：pbkdf2$迭代次数$轮数$盐$派生值。参数内嵌，日后调参不废旧口令。 */
 export async function hashPassword(password: string): Promise<string> {
   const salt = crypto.getRandomValues(new Uint8Array(16));
-  const hash = await derive(password, salt, PBKDF2_ITERATIONS);
-  return `pbkdf2$${PBKDF2_ITERATIONS}$${toHex(salt.buffer)}$${hash}`;
+  const hash = await derive(password, salt, PBKDF2_ITERATIONS, PBKDF2_ROUNDS);
+  return `pbkdf2$${PBKDF2_ITERATIONS}$${PBKDF2_ROUNDS}$${toHex(salt.buffer)}$${hash}`;
 }
 
 export async function verifyPassword(
   password: string,
   stored: string,
 ): Promise<boolean> {
-  const [scheme, iterations, saltHex, expected] = stored.split("$");
-  if (scheme !== "pbkdf2" || !iterations || !saltHex || !expected) return false;
+  const [scheme, iterations, rounds, saltHex, expected] = stored.split("$");
+  if (scheme !== "pbkdf2" || !iterations || !rounds || !saltHex || !expected) {
+    return false;
+  }
 
-  const actual = await derive(password, fromHex(saltHex), Number(iterations));
+  const actual = await derive(
+    password,
+    fromHex(saltHex),
+    Number(iterations),
+    Number(rounds),
+  );
 
   // 定长比较，避免按字节短路带来的时序侧信道。
   if (actual.length !== expected.length) return false;
@@ -162,7 +191,7 @@ export async function login(
 
   // 用户不存在时也走一次同样开销的派生，让「邮箱是否注册过」无法由响应时间推断。
   if (!user) {
-    await derive(password, new Uint8Array(16), PBKDF2_ITERATIONS);
+    await derive(password, new Uint8Array(16), PBKDF2_ITERATIONS, PBKDF2_ROUNDS);
     return { ok: false, error: "bad_credentials" };
   }
 
@@ -217,5 +246,13 @@ export async function getUser(
   const rows = await context.db.select().from(users).where(eq(users.id, userId)).limit(1);
   return rows[0] ?? null;
 }
+
+/** 暴露给测试：确保单轮迭代数永不超过 Workers 的硬上限。 */
+export const PBKDF2_PARAMS = {
+  iterations: PBKDF2_ITERATIONS,
+  rounds: PBKDF2_ROUNDS,
+  /** Workers 的平台上限。见 PBKDF2_ITERATIONS 的注释。 */
+  workersMaxIterations: 100_000,
+};
 
 export { balanceTransactions };

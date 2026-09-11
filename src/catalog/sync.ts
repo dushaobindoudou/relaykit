@@ -23,6 +23,8 @@ export interface SyncReport {
   withheld: number;
   /** 每条下架原因出现的次数，便于在后台一眼看出是系统性问题还是个别商品。 */
   reasons: Record<string, number>;
+  /** 本轮因上游不再返回而被下架的规格数。 */
+  delisted: number;
   error?: string;
 }
 
@@ -50,7 +52,13 @@ export async function syncSupplier(
   supplierId: string,
   now = new Date(),
 ): Promise<SyncReport> {
-  const report: SyncReport = { supplierId, listed: 0, withheld: 0, reasons: {} };
+  const report: SyncReport = {
+    supplierId,
+    listed: 0,
+    withheld: 0,
+    delisted: 0,
+    reasons: {},
+  };
 
   const adapter = context.suppliers.get(supplierId);
   if (!adapter) {
@@ -146,9 +154,41 @@ export async function syncSupplier(
     }
   }
 
+  // 上游已经删掉的商品必须下架。
+  // 只做 upsert 不做这一步的话，下架商品会永远挂在店里，客户能下单但
+  // 进货必定失败 —— 变成一笔要退款的订单和一次差评。
+  report.delisted = await delistMissing(context, supplierId, syncedAt);
+
   await syncCategories(context, supplierId, adapter, syncedAt);
 
   return report;
+}
+
+/**
+ * 把本轮没有出现的商品下架。
+ *
+ * 判据是 syncedAt：本轮同步到的行都会被写上同一个时间戳，早于它的就是
+ * 上游这次没返回的。**只下架不删除** —— 历史订单要能读回商品名，
+ * 而且上游临时抽风漏返商品时，保留行比丢数据安全。
+ */
+async function delistMissing(
+  context: RelayKitContext,
+  supplierId: string,
+  syncedAt: string,
+): Promise<number> {
+  const result = await context.db
+    .update(products)
+    .set({ sellable: false, unsellableReason: "上游已下架" })
+    .where(
+      and(
+        eq(products.supplierId, supplierId),
+        eq(products.sellable, true),
+        sql`${products.syncedAt} < ${syncedAt}`,
+      ),
+    )
+    .returning({ code: products.code });
+
+  return result.length;
 }
 
 /**

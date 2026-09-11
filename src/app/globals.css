@@ -1,75 +1,82 @@
 @import "tailwindcss";
 
 /**
- * 设计令牌。
+ * 设计令牌 —— 骨架照搬 Shopify Dawn 的商店结构，不自创。
  *
- * 三条锁定规则，整站不许破例：
- *   1. 单一强调色。全站只有 --accent 一个强调色，不存在"这个区块用蓝那个用绿"。
- *   2. 单一圆角尺度。6px 用于一切容器与控件 —— 小圆角读作工具/基础设施，
- *      大圆角（rounded-2xl）读作消费类 App，而客户在这里是要打钱的。
- *   3. 中性色是暖灰（stone 系）。不与冷灰混用。
+ * Dawn 之所以是参照：它是 Shopify 的旗舰主题，被几十万家店验证过，
+ * 商品卡、购买框、结算流的解剖结构都是转化率调优过的。我们要做的是
+ * 把这套成熟结构搬过来，而不是重新发明一遍电商页面长什么样。
  *
- * 配色思路：这是信任优先的交易界面，不是营销页。克制压过表现力。
- * 蓝色不是因为"默认"才选的 —— 支付场景里它是对的，为了求新而换色会损失可信度。
+ * 从 Dawn 继承的：
+ *   - 顶部公告条 → 干净白头部 → 内容 → 多列页脚 的纵向骨架
+ *   - 大留白、克制的分隔线、几乎不用阴影
+ *   - 商品卡 = 方图 + 标题 + 价格，没有边框没有卡片容器
+ *   - 商品页 = 媒体在左、购买框在右，购买框内按钮通栏
+ *   - 小写标签用大写字母 + 字距，正文用常规字号
+ *
+ * 三条全站锁定：单一强调色、单一圆角尺度（4px，Dawn 偏方）、暖中性色。
  */
 
 @theme {
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
-
-  --radius-card: 6px;
+  --radius-card: 4px;
 }
 
 :root {
   color-scheme: light dark;
 
-  /* 暖中性 */
-  --bg: #fbfaf9;
+  --bg: #ffffff;
   --bg-raised: #ffffff;
-  --bg-sunken: #f4f2f0;
-  --line: #e5e1dd;
-  --line-strong: #d4cfc9;
-  --text: #1c1917;
-  --text-muted: #6b635c;
-  --text-faint: #948d86;
+  --bg-sunken: #f6f5f3;
+  --line: #e6e3df;
+  --line-strong: #cfcac3;
+  --text: #14130f;
+  --text-muted: #5f5a53;
+  --text-faint: #8d867d;
 
-  /* 单一强调色，全站唯一 */
-  --accent: #0d5bd1;
-  --accent-hover: #0a49a8;
+  --accent: #14130f;
+  --accent-hover: #33302a;
   --accent-fg: #ffffff;
-  --accent-wash: #eaf1fd;
+  --accent-wash: #f1efec;
 
-  /* 状态色仅用于状态，不作装饰 */
-  --ok: #13683c;
-  --ok-wash: #e8f4ed;
+  /* 高亮色单独一枚，只用于价格强调与选中态，不与 accent 混用 */
+  --pop: #1c5f45;
+  --pop-wash: #e9f2ee;
+
+  --ok: #1c5f45;
+  --ok-wash: #e9f2ee;
   --warn: #8a5300;
-  --warn-wash: #fdf2e0;
-  --danger: #9c1f1f;
-  --danger-wash: #fbebeb;
+  --warn-wash: #fdf3e3;
+  --danger: #93231f;
+  --danger-wash: #fbecea;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #131211;
-    --bg-raised: #1b1a18;
-    --bg-sunken: #0e0d0c;
-    --line: #2c2a27;
-    --line-strong: #3d3a36;
-    --text: #f2efec;
-    --text-muted: #a8a099;
-    --text-faint: #776f68;
+    --bg: #121110;
+    --bg-raised: #1a1917;
+    --bg-sunken: #1a1917;
+    --line: #2b2926;
+    --line-strong: #403d38;
+    --text: #f4f1ed;
+    --text-muted: #a9a29a;
+    --text-faint: #7b746b;
 
-    --accent: #5b9bff;
-    --accent-hover: #7fb2ff;
-    --accent-fg: #0b1220;
-    --accent-wash: #16243d;
+    --accent: #f4f1ed;
+    --accent-hover: #ffffff;
+    --accent-fg: #121110;
+    --accent-wash: #23211e;
 
-    --ok: #5fc78d;
-    --ok-wash: #12251a;
+    --pop: #6fc79e;
+    --pop-wash: #13251d;
+
+    --ok: #6fc79e;
+    --ok-wash: #13251d;
     --warn: #e0a44c;
     --warn-wash: #2a1f0e;
-    --danger: #f08a8a;
-    --danger-wash: #2c1414;
+    --danger: #ef8d88;
+    --danger-wash: #2d1513;
   }
 }
 
@@ -79,23 +86,53 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* 数字一律等宽且定宽：价格、金额、订单号在页面上要能竖着对齐扫读。
-   这是功能性的，不是风格选择。 */
+/* 数字等宽且定宽：价格、余额、订单号要能竖着对齐扫读。功能性，非风格。 */
 .numeric {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
 }
 
-/* 焦点环统一，且在两种主题下都看得见。 */
+/* Dawn 的小标签：大写 + 字距。用在区块标题与徽标上。 */
+.eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
 :where(a, button, input, select, textarea):focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
-  border-radius: 3px;
+  border-radius: 2px;
 }
 
-/* MOTION_INTENSITY 3：只有状态反馈，没有自动播放的动画。
-   结账流程里动效除了分散注意力没有别的作用。 */
+/* 上游商品详情是富文本，给它一套克制的排版，避免继承出奇怪的间距。 */
+.rte :where(p, ul, ol) {
+  margin-block: 0.75em;
+  line-height: 1.7;
+}
+.rte :where(ul, ol) {
+  padding-left: 1.25em;
+  list-style: revert;
+}
+.rte :where(h1, h2, h3, h4) {
+  margin-block: 1.2em 0.5em;
+  font-weight: 600;
+  line-height: 1.35;
+}
+.rte a {
+  color: var(--pop);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.rte img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-card);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

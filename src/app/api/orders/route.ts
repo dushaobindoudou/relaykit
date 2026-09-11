@@ -1,13 +1,17 @@
 /** 创建订单。店面下单表单唯一的写入口。 */
 
 import { getCloudflareContext } from "@opennextjs/cloudflare";
+import { cookies } from "next/headers";
 
+import { resolveSession, SESSION_COOKIE } from "@/accounts/auth";
 import { createOrder } from "@/orders/service";
 import { buildContext, type Bindings } from "@/runtime/context";
 
 export const dynamic = "force-dynamic";
 
 interface Payload {
+  payMethod?: unknown;
+  couponCode?: unknown;
   supplierId?: unknown;
   code?: unknown;
   race?: unknown;
@@ -44,6 +48,15 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ ok: false, error: "订单口令至少 4 位" }, { status: 400 });
   }
 
+  // 登录用户下单时把订单挂到账号上，"我的订单"才看得到。
+  const user = await resolveSession(
+    result.context,
+    (await cookies()).get(SESSION_COOKIE)?.value,
+  );
+
+  const payMethod = str(body.payMethod) === "balance" ? "balance" : "chain";
+  const couponCode = str(body.couponCode);
+
   const created = await createOrder(result.context, {
     supplierId: str(body.supplierId),
     code: str(body.code),
@@ -52,6 +65,9 @@ export async function POST(request: Request): Promise<Response> {
     chainId: str(body.chainId),
     contactEmail: email,
     queryPassword: password,
+    payMethod,
+    user,
+    ...(couponCode ? { couponCode } : {}),
   });
 
   if (!created.ok) {

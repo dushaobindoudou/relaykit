@@ -10,13 +10,10 @@
 
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getCloudflareContext } from "@opennextjs/cloudflare";
-
-import { Shell } from "@/components/shell";
+import { PageFrame } from "@/components/page-frame";
 import { OrderView } from "@/components/order-view";
-import { getI18n } from "@/i18n";
 import { getOrder } from "@/orders/service";
-import { buildContext, type Bindings } from "@/runtime/context";
+import { loadPage, userSummary } from "@/runtime/page-context";
 
 export const dynamic = "force-dynamic";
 
@@ -31,41 +28,42 @@ export default async function OrderPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const { env } = getCloudflareContext();
-  const result = buildContext(env satisfies Bindings);
-  if (!result.ok || !result.context) notFound();
+  const loaded = await loadPage({ categories: false });
+  if (!loaded.ok) notFound();
 
-  const order = await getOrder(result.context, id);
+  const { context, locale, t, user, banner } = loaded.page;
+  const order = await getOrder(context, id);
   if (!order) notFound();
 
-  const { config } = result.context;
-  const { locale, t } = await getI18n(config.store.locale);
+  const { config } = context;
 
   return (
-    <Shell
+    <PageFrame
       storeName={config.store.name}
       currency={config.store.currency}
-      categories={[]}
+      supportEmail={config.store.supportEmail ?? null}
       locale={locale}
       t={t}
-      withSidebar={false}
+      user={userSummary(user)}
+      bannerText={banner?.bannerText ?? null}
+      width="max-w-xl"
     >
-        {/* 服务端只下发非敏感字段。卡密要凭口令另取，绝不在首屏 HTML 里。 */}
+      {/* 服务端只下发非敏感字段。卡密要凭口令另取，绝不在首屏 HTML 里。 */}
       <OrderView
-          copy={t.order}
-          statusCopy={t.status}
-          orderId={order.id}
-          status={order.status}
-          productName={order.productName}
-          race={order.race}
-          quantity={order.quantity}
-          currency={order.currency}
-          payAmount={order.payAmount ?? ""}
-          payAddress={order.payAddress ?? ""}
-          chainId={order.chainId ?? ""}
-          payWindowEndsAt={order.payWindowEndsAt ?? ""}
-          createdAt={order.createdAt}
+        copy={t.order}
+        statusCopy={t.status}
+        orderId={order.id}
+        status={order.status}
+        productName={order.productName}
+        race={order.race}
+        quantity={order.quantity}
+        currency={order.currency}
+        payAmount={order.payAmount ?? ""}
+        payAddress={order.payAddress ?? ""}
+        chainId={order.chainId ?? ""}
+        payWindowEndsAt={order.payWindowEndsAt ?? ""}
+        createdAt={order.createdAt}
       />
-    </Shell>
+    </PageFrame>
   );
 }

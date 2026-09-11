@@ -10,7 +10,8 @@ export default async function robots(): Promise<MetadataRoute.Robots> {
       userAgent: "*",
       allow: "/",
       // 订单页含卡密，绝不能被抓取；管理与接口路径同理。
-      disallow: ["/orders/", "/lookup", "/api/"],
+      // /help 刻意不屏蔽 —— 它是主要的 SEO 落地内容。
+      disallow: ["/orders/", "/lookup", "/account", "/api/"],
     },
     sitemap: store.baseUrl ? `${store.baseUrl}/sitemap.xml` : undefined,
   };

@@ -1,7 +1,10 @@
 import type { MetadataRoute } from "next";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 
+import { eq } from "drizzle-orm";
+
 import { listCatalog } from "@/catalog/sync";
+import { articles } from "@/db/schema";
 import { buildContext, type Bindings } from "@/runtime/context";
 import { getStoreMeta } from "@/runtime/store-meta";
 
@@ -14,6 +17,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = store.baseUrl.replace(/\/+$/, "");
   const entries: MetadataRoute.Sitemap = [
     { url: base, changeFrequency: "daily", priority: 1 },
+    { url: `${base}/help`, changeFrequency: "weekly", priority: 0.5 },
   ];
 
   const { env } = getCloudflareContext();
@@ -27,6 +31,22 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       url: `${base}/p/${entry.supplierId}/${encodeURIComponent(entry.code)}`,
       changeFrequency: "daily",
       priority: 0.8,
+    });
+  }
+
+  // 帮助文章是站内唯一不受上游限制的可索引内容，是自然流量的主要来源，
+  // 必须进 sitemap。
+  const published = await result.context.db
+    .select({ slug: articles.slug, updatedAt: articles.updatedAt })
+    .from(articles)
+    .where(eq(articles.published, true));
+
+  for (const article of published) {
+    entries.push({
+      url: `${base}/help/${article.slug}`,
+      lastModified: new Date(article.updatedAt),
+      changeFrequency: "monthly",
+      priority: 0.6,
     });
   }
 

@@ -10,9 +10,10 @@
  * 带四位小数的金额是真实的出错来源，而抄错金额会导致订单匹配不上。
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Badge, Row } from "@/components/site-chrome";
+import { PaymentInstructions } from "@/components/payment-instructions";
 
 type Status =
   | "draft"
@@ -64,72 +65,6 @@ export interface OrderCopy {
   enterPassword: string;
   openLookup: string;
   exactDecimals: string;
-}
-
-function CopyField({
-  label,
-  value,
-  copyLabel,
-  copiedLabel,
-}: {
-  label: string;
-  value: string;
-  copyLabel: string;
-  copiedLabel: string;
-}) {
-  const [copied, setCopied] = useState(false);
-
-  const copy = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(value);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1600);
-    } catch {
-      // 剪贴板在不安全上下文里会被拒绝。值本身就在页面上，用户可以手选，
-      // 所以这里静默降级即可，不必弹错误吓人。
-    }
-  }, [value]);
-
-  return (
-    <div>
-      <div className="flex items-baseline justify-between">
-        <span className="text-[13px] text-[var(--text-muted)]">{label}</span>
-        <button
-          type="button"
-          onClick={copy}
-          className="text-[12px] text-[var(--accent)] hover:underline"
-        >
-          {copied ? copiedLabel : copyLabel}
-        </button>
-      </div>
-      <p className="numeric mt-1.5 break-all rounded-[var(--radius-card)] bg-[var(--bg-sunken)] px-3 py-2.5 text-[14px]">
-        {value}
-      </p>
-    </div>
-  );
-}
-
-function Countdown({ endsAt }: { endsAt: string }) {
-  const [left, setLeft] = useState<number>(() =>
-    Math.max(0, new Date(endsAt).getTime() - Date.now()),
-  );
-
-  useEffect(() => {
-    const timer = setInterval(
-      () => setLeft(Math.max(0, new Date(endsAt).getTime() - Date.now())),
-      1000,
-    );
-    return () => clearInterval(timer);
-  }, [endsAt]);
-
-  const minutes = Math.floor(left / 60_000);
-  const seconds = Math.floor((left % 60_000) / 1000);
-
-  return (
-    <span className="numeric">
-      {minutes}:{String(seconds).padStart(2, "0")}
-    </span>
-  );
 }
 
 export function OrderView(props: {
@@ -225,43 +160,16 @@ export function OrderView(props: {
       <p className="mt-2 text-[14px] text-[var(--text-muted)]">{view.help}</p>
 
       {status === "awaiting_payment" && (
-        <section className="mt-8 rounded-[var(--radius-card)] border border-[var(--accent)] bg-[var(--accent-wash)] p-5">
-          <div className="flex items-baseline justify-between">
-            <h2 className="text-[13px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">
-              {copy.sendExactly}
-            </h2>
-            {props.payWindowEndsAt && (
-              <span className="text-[13px] text-[var(--text-muted)]">
-                <Countdown endsAt={props.payWindowEndsAt} /> {copy.left}
-              </span>
-            )}
-          </div>
-
-          <p className="numeric mt-3 text-[30px] font-semibold leading-none">
-            {props.payAmount}
-            <span className="ml-2 font-sans text-[14px] font-normal text-[var(--text-muted)]">
-              {props.currency}
-            </span>
-          </p>
-          <p className="mt-2 text-[12px] leading-relaxed text-[var(--text-muted)]">
-            {copy.exactDecimals}
-          </p>
-
-          <div className="mt-5 grid gap-4">
-            <CopyField
-              label={`${copy.address} (${props.chainId.toUpperCase()})`}
-              value={props.payAddress}
-              copyLabel={copy.copy}
-              copiedLabel={copy.copied}
-            />
-            <CopyField
-              label={copy.amount}
-              value={props.payAmount}
-              copyLabel={copy.copy}
-              copiedLabel={copy.copied}
-            />
-          </div>
-        </section>
+        <div className="mt-7">
+          <PaymentInstructions
+            amount={props.payAmount}
+            address={props.payAddress}
+            chainId={props.chainId}
+            currency={props.currency}
+            endsAt={props.payWindowEndsAt}
+            copy={copy}
+          />
+        </div>
       )}
 
       {status === "fulfilled" && secret && (

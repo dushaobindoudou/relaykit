@@ -1,17 +1,24 @@
 import Link from "next/link";
-import { getCloudflareContext } from "@opennextjs/cloudflare";
 
-import { listCatalog, listCategories, type CatalogEntry } from "@/catalog/sync";
+import { listCatalog, type CatalogEntry } from "@/catalog/sync";
 import { isPlaceholderAddress } from "@/config/schema";
-import { Badge, Notice } from "@/components/site-chrome";
-import { Shell } from "@/components/shell";
-import { getI18n } from "@/i18n";
+import { AnnouncementPopup } from "@/components/announcement-popup";
+import {
+  AnnouncementBar,
+  CategoryNav,
+  StoreFooter,
+  StoreHeader,
+} from "@/components/storefront";
 import type { Dict } from "@/i18n/dictionary";
-import { buildContext, type Bindings } from "@/runtime/context";
+import { loadPage, userSummary } from "@/runtime/page-context";
 
 export const dynamic = "force-dynamic";
 
-function ProductRow({
+/**
+ * 商品卡 —— Dawn 的解剖结构：方图 + 标题 + 价格，没有边框没有卡片容器。
+ * 图片本身承担视觉分组，再套一层描边框会让网格显得拥挤。
+ */
+function ProductCard({
   entry,
   currency,
   t,
@@ -23,56 +30,58 @@ function ProductRow({
   const soldOut = entry.totalStock <= 0;
 
   return (
-    <li>
-      <Link
-        href={`/p/${entry.supplierId}/${encodeURIComponent(entry.code)}`}
-        className="group flex items-center gap-4 border-b border-[var(--line)] py-4 transition-colors hover:bg-[var(--bg-sunken)]"
-      >
+    <Link
+      href={`/p/${entry.supplierId}/${encodeURIComponent(entry.code)}`}
+      className="group block"
+    >
+      <div className="relative aspect-square overflow-hidden rounded-[var(--radius-card)] bg-[var(--bg-sunken)]">
         {entry.cover ? (
-          // 上游给的封面。不用 next/image：Workers 上没有 sharp，
-          // 而且这些是外站图片，交给浏览器直出更简单可靠。
+          // 不用 next/image：Workers 上没有 sharp，且这些是外站图片。
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={entry.cover}
-            alt=""
+            alt={entry.name}
             loading="lazy"
-            className="h-11 w-11 shrink-0 rounded-[var(--radius-card)] object-cover"
+            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
           />
         ) : (
-          <div className="h-11 w-11 shrink-0 rounded-[var(--radius-card)] bg-[var(--bg-sunken)]" />
+          <div className="flex h-full w-full items-center justify-center">
+            <span className="text-[28px] font-semibold text-[var(--line-strong)]">
+              {entry.name.slice(0, 1).toUpperCase()}
+            </span>
+          </div>
         )}
 
-        <div className="min-w-0 flex-1">
-          <h2 className="truncate text-[15px] font-medium group-hover:text-[var(--accent)]">
-            {entry.name}
-          </h2>
-          <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[12px] text-[var(--text-faint)]">
-            <span>
-              {entry.deliveryWay === "auto"
-                ? t.product.autoDelivery
-                : t.product.manualDelivery}
-            </span>
-            {entry.variants.length > 1 && (
-              <span>{t.product.options(entry.variants.length)}</span>
-            )}
-            {/* 上游隐藏库存数字时给的是文案（"充足"），原样展示。 */}
-            {entry.stockText && <span>{entry.stockText}</span>}
-          </div>
-        </div>
+        {entry.deliveryWay === "auto" && (
+          <span className="absolute left-2 top-2 rounded-full bg-[var(--bg)]/90 px-2 py-0.5 text-[11px] font-medium text-[var(--pop)] backdrop-blur">
+            {t.product.autoDelivery}
+          </span>
+        )}
+        {soldOut && (
+          <span className="absolute inset-x-0 bottom-0 bg-[var(--accent)]/85 py-1.5 text-center text-[12px] text-[var(--accent-fg)]">
+            {t.product.outOfStock}
+          </span>
+        )}
+      </div>
 
-        <div className="shrink-0 text-right">
-          <p className="numeric text-[16px] font-semibold">
-            {entry.variants.length > 1 && (
-              <span className="mr-1 font-sans text-[11px] font-normal text-[var(--text-faint)]">
-                {t.product.from}
-              </span>
-            )}
-            {entry.fromPrice}
-          </p>
-          <p className="text-[11px] text-[var(--text-faint)]">{currency}</p>
-        </div>
-      </Link>
-    </li>
+      <h3 className="mt-3 line-clamp-2 text-[14px] font-medium leading-snug group-hover:underline group-hover:underline-offset-4">
+        {entry.name}
+      </h3>
+
+      <div className="mt-1.5 flex items-baseline gap-1.5">
+        {entry.variants.length > 1 && (
+          <span className="text-[11px] text-[var(--text-faint)]">{t.product.from}</span>
+        )}
+        <span className="numeric text-[15px] font-semibold text-[var(--pop)]">
+          {entry.fromPrice}
+        </span>
+        <span className="text-[11px] text-[var(--text-faint)]">{currency}</span>
+      </div>
+
+      {entry.stockText && (
+        <p className="mt-1 text-[11px] text-[var(--text-faint)]">{entry.stockText}</p>
+      )}
+    </Link>
   );
 }
 
@@ -82,117 +91,111 @@ export default async function Home({
   searchParams: Promise<{ c?: string; q?: string }>;
 }) {
   const { c: categoryId, q: search } = await searchParams;
-  const { env } = getCloudflareContext();
-  const result = buildContext(env satisfies Bindings);
+  const loaded = await loadPage();
 
-  if (!result.ok || !result.context) {
-    const { locale, t } = await getI18n("en");
+  if (!loaded.ok) {
+    const { t } = loaded;
     return (
-      <Shell
-        storeName="RelayKit"
-        currency="USDT"
-        categories={[]}
-        locale={locale}
-        t={t}
-        withSidebar={false}
-      >
-        <h1 className="text-[22px] font-semibold tracking-tight">{t.setup.title}</h1>
+      <main className="mx-auto max-w-2xl px-6 py-20">
+        <h1 className="text-[24px] font-semibold tracking-tight">{t.setup.title}</h1>
         <p className="mt-2 text-[14px] text-[var(--text-muted)]">{t.setup.intro}</p>
         <pre className="mt-5 overflow-x-auto rounded-[var(--radius-card)] bg-[var(--bg-sunken)] p-4 text-[13px] leading-relaxed">
-          {result.error ?? "unknown"}
+          {loaded.error}
         </pre>
         <p className="mt-4 text-[13px] text-[var(--text-muted)]">
           {t.setup.diagnostics}{" "}
-          <Link href="/api/health" className="text-[var(--accent)] underline underline-offset-4">
+          <Link href="/api/health" className="text-[var(--pop)] underline underline-offset-4">
             /api/health
           </Link>
         </p>
-      </Shell>
+      </main>
     );
   }
 
-  const context = result.context;
+  const { context, locale, t, user, categories, banner, popups } = loaded.page;
   const { config } = context;
-  const { locale, t } = await getI18n(config.store.locale);
 
-  const [categories, entries] = await Promise.all([
-    listCategories(context),
-    listCatalog(context, {
-      ...(categoryId ? { categoryId } : {}),
-      ...(search ? { search } : {}),
-    }),
-  ]);
+  const entries = await listCatalog(context, {
+    ...(categoryId ? { categoryId } : {}),
+    ...(search ? { search } : {}),
+  });
 
   const unpayable = config.payments.chains
     .filter((chain) => chain.enabled && isPlaceholderAddress(chain.address))
     .map((chain) => chain.id);
-  const canSell = config.payments.chains.some(
-    (chain) => chain.enabled && !isPlaceholderAddress(chain.address),
-  );
+  const canSell = unpayable.length < config.payments.chains.filter((c) => c.enabled).length;
 
   const activeCategory = categories.find((item) => item.externalId === categoryId);
 
   return (
-    <Shell
-      storeName={config.store.name}
-      currency={config.store.currency}
-      categories={categories}
-      activeCategoryId={categoryId}
-      locale={locale}
-      t={t}
-      search={search}
-    >
-      <div className="flex items-baseline justify-between gap-4">
-        <h1 className="text-[20px] font-semibold tracking-tight">
-          {activeCategory ? activeCategory.name : t.nav.allCategories}
-        </h1>
-        <span className="numeric shrink-0 text-[13px] text-[var(--text-faint)]">
-          {t.home.itemCount(entries.length)}
-        </span>
-      </div>
+    <>
+      {banner?.bannerText && <AnnouncementBar text={banner.bannerText} />}
+      <StoreHeader
+        storeName={config.store.name}
+        locale={locale}
+        t={t}
+        user={userSummary(user)}
+        search={search}
+      />
+      <CategoryNav categories={categories} activeId={categoryId} t={t} />
 
-      {!canSell && (
-        <div className="mt-5">
-          <Notice title={t.setup.demoMode}>{t.setup.demoBody(unpayable.join(", "))}</Notice>
-        </div>
-      )}
+      <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
+        {!canSell && (
+          <div className="mb-8 rounded-[var(--radius-card)] border border-[var(--warn)]/25 bg-[var(--warn-wash)] px-4 py-3 text-[13px] leading-relaxed text-[var(--warn)]">
+            <strong className="font-semibold">{t.setup.demoMode}</strong>{" "}
+            {t.setup.demoBody(unpayable.join(", "))}
+          </div>
+        )}
 
-      {entries.length === 0 ? (
-        <div className="mt-8 border-t border-[var(--line)] pt-10">
-          <p className="text-[15px]">{search ? t.home.noMatch : t.home.empty}</p>
-          {!search && (
-            <p className="mt-2 max-w-lg text-[13px] leading-relaxed text-[var(--text-muted)]">
-              {t.home.emptyHint}{" "}
-              <Link href="/api/health" className="text-[var(--accent)] underline underline-offset-4">
-                /api/health
-              </Link>
-            </p>
-          )}
+        <div className="flex items-baseline justify-between gap-4">
+          <h1 className="text-[22px] font-semibold tracking-[-0.01em]">
+            {activeCategory ? activeCategory.name : t.nav.allCategories}
+          </h1>
+          <span className="numeric shrink-0 text-[13px] text-[var(--text-faint)]">
+            {t.home.itemCount(entries.length)}
+          </span>
         </div>
-      ) : (
-        <ul className="mt-5 border-t border-[var(--line)]">
-          {entries.map((entry) => (
-            <ProductRow
-              key={`${entry.supplierId}:${entry.code}`}
-              entry={entry}
-              currency={config.store.currency}
-              t={t}
-            />
-          ))}
-        </ul>
-      )}
 
-      {entries.length > 0 && (
-        <div className="mt-6 flex flex-wrap gap-2">
-          <Badge tone="ok">{t.product.autoDelivery}</Badge>
-          <Badge>
-            {config.payments.chains
-              .filter((chain) => chain.enabled && !isPlaceholderAddress(chain.address))
-              .map((chain) => chain.id.toUpperCase())
-              .join(" / ") || t.buy.notConfigured}
-          </Badge>
-        </div>
+        {entries.length === 0 ? (
+          <div className="mt-10 rounded-[var(--radius-card)] bg-[var(--bg-sunken)] px-6 py-16 text-center">
+            <p className="text-[15px]">{search ? t.home.noMatch : t.home.empty}</p>
+            {!search && (
+              <p className="mx-auto mt-2 max-w-md text-[13px] leading-relaxed text-[var(--text-muted)]">
+                {t.home.emptyHint}
+              </p>
+            )}
+          </div>
+        ) : (
+          // Dawn 的网格密度：手机 2 列、平板 3 列、桌面 4 列。
+          <div className="mt-6 grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 lg:grid-cols-4">
+            {entries.map((entry) => (
+              <ProductCard
+                key={`${entry.supplierId}:${entry.code}`}
+                entry={entry}
+                currency={config.store.currency}
+                t={t}
+              />
+            ))}
+          </div>
+        )}
+      </main>
+
+      <StoreFooter
+        storeName={config.store.name}
+        currency={config.store.currency}
+        supportEmail={config.store.supportEmail ?? null}
+        t={t}
+      />
+
+      {popups.length > 0 && (
+        <AnnouncementPopup
+          items={popups.map((item) => ({
+            id: item.id,
+            title: item.title,
+            body: item.body,
+          }))}
+        />
       )}
-    </Shell>
+    </>
   );
 }
