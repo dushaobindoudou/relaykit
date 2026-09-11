@@ -17,8 +17,13 @@
 
 import openNextHandler from "../.open-next/worker.js";
 
+import { expireStaleTopups } from "@/accounts/topup";
 import { syncAll } from "@/catalog/sync";
-import { buildContext, type Bindings } from "@/runtime/context";
+import { expireStaleOrders, fulfillOrder } from "@/orders/service";
+import { watchAll } from "@/payments/watcher";
+import { orders } from "@/db/schema";
+import { buildContext, type Bindings, type RelayKitContext } from "@/runtime/context";
+import { eq } from "drizzle-orm";
 
 export {
   DOQueueHandler,
@@ -46,10 +51,30 @@ async function runScheduled(cron: string, env: Bindings): Promise<void> {
   const context = result.context;
 
   switch (cron) {
-    case EVERY_MINUTE:
-      // 收款轮询将挂在这里。链上监听尚未接入，此处暂不做事 ——
-      // 留空而不是删掉 cron，是为了让部署配置与最终形态保持一致。
+    case EVERY_MINUTE: {
+      // 顺序是有讲究的：先收款、再发货、最后清理过期单。
+      // 反过来的话，刚到账还没来得及标记 paid 的订单会被超时任务作废。
+      for (const report of await watchAll(context)) {
+        if (report.error) {
+          console.error(`[cron] 扫链 ${report.chainId} 失败: ${report.error}`);
+        } else if (report.transfers > 0) {
+          console.log(
+            `[cron] 扫链 ${report.chainId} ${report.scannedFrom}-${report.scannedTo}: ` +
+              `${report.transfers} 笔到账，命中订单 ${report.matchedOrders}、` +
+              `充值 ${report.matchedTopups}、未匹配 ${report.unmatched}`,
+          );
+        }
+      }
+
+      await fulfillPaidOrders(context);
+
+      const expired = await expireStaleOrders(context);
+      const expiredTopups = await expireStaleTopups(context);
+      if (expired || expiredTopups) {
+        console.log(`[cron] 过期关闭：订单 ${expired}、充值单 ${expiredTopups}`);
+      }
       return;
+    }
 
     case EVERY_15_MINUTES: {
       const reports = await syncAll(context);
@@ -68,6 +93,30 @@ async function runScheduled(cron: string, env: Bindings): Promise<void> {
 
     default:
       console.warn(`[cron] 未识别的表达式: ${cron}`);
+  }
+}
+
+/**
+ * 把已付款的订单推去进货发货。
+ *
+ * 逐单串行：进货是花钱的操作，并发下即便有状态机与幂等键兜底，
+ * 也没有理由为了几百毫秒去冒这个险。单次最多处理 20 张，
+ * 剩下的留给下一分钟 —— Cron 的执行时长有限。
+ */
+async function fulfillPaidOrders(context: RelayKitContext): Promise<void> {
+  if (context.config.fulfillment.mode !== "auto") return;
+
+  const pending = await context.db
+    .select()
+    .from(orders)
+    .where(eq(orders.status, "paid"))
+    .limit(20);
+
+  for (const order of pending) {
+    const result = await fulfillOrder(context, order);
+    if (!result.ok) {
+      console.error(`[cron] 订单 ${order.id} 发货失败(${result.status}): ${result.message}`);
+    }
   }
 }
 
