@@ -9,11 +9,12 @@
  */
 
 import { getCloudflareContext } from "@opennextjs/cloudflare";
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 import { buildContext, type Bindings } from "@/runtime/context";
 import { fxFromConfig } from "@/catalog/sync";
 import { isPlaceholderAddress } from "@/config/schema";
+import { products } from "@/db/schema";
 
 export const dynamic = "force-dynamic";
 
@@ -95,11 +96,46 @@ export async function GET(): Promise<Response> {
     });
   }
 
-  // —— 逐个上游：连通性与余额 ——
+  // —— 逐个上游 ——
   // 串行，避免对小站造成并发压力。
   for (const supplierConfig of context.config.suppliers) {
     const adapter = context.suppliers.get(supplierConfig.id);
     if (!adapter) continue;
+
+    // 注入式上游（acgfaka-public）：Worker 本就连不上上游（数据由同步脚本
+    // 推入），所以直连必然失败。它的健康应当看**目录新鲜度**：多久没被同步过。
+    if (supplierConfig.driver === "acgfaka-public") {
+      const rows = await context.db
+        .select({
+          sellable: sql<number>`sum(case when ${products.sellable} then 1 else 0 end)`,
+          latest: sql<string>`max(${products.syncedAt})`,
+        })
+        .from(products)
+        .where(eq(products.supplierId, supplierConfig.id));
+
+      const sellable = Number(rows[0]?.sellable ?? 0);
+      const latest = rows[0]?.latest ?? null;
+      // 超过 1 小时没同步就告警：说明外部同步脚本可能挂了（cron 停了、
+      // 那台主机也访问不了上游了）。
+      const ageMinutes = latest
+        ? (Date.now() - new Date(latest).getTime()) / 60_000
+        : Infinity;
+      const stale = ageMinutes > 60;
+
+      checks.push({
+        name: `supplier:${supplierConfig.id}`,
+        ok: sellable > 0 && !stale,
+        detail:
+          sellable === 0
+            ? `目录为空。由 scripts/sync-upstream.ts 从可访问上游的主机推入数据，` +
+              `请确认该同步脚本已运行（见 docs/upstream-access.md）。`
+            : stale
+              ? `目录已 ${ageMinutes === Infinity ? "从未" : Math.round(ageMinutes) + " 分钟未"}` +
+                `同步（在架 ${sellable} 项）。同步脚本可能已停止运行。`
+              : `注入式上游，在架 ${sellable} 项，${Math.round(ageMinutes)} 分钟前同步`,
+      });
+      continue;
+    }
 
     try {
       const { shopName, balance } = await adapter.connect();

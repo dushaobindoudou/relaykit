@@ -13,7 +13,7 @@ import { and, eq, sql } from "drizzle-orm";
 import type { RelayKitContext } from "@/runtime/context";
 import { categories, products, type Category, type Product } from "@/db/schema";
 import { quotePrice, resolveMarkup, type FxSnapshot } from "@/pricing/engine";
-import type { SupplierProduct } from "@/supplier/types";
+import type { SupplierCategory, SupplierProduct } from "@/supplier/types";
 
 export interface SyncReport {
   supplierId: string;
@@ -47,10 +47,23 @@ export function fxFromConfig(context: RelayKitContext): FxSnapshot {
   return { rates: {}, fetchedAt: new Date(0) };
 }
 
+/**
+ * 预取的上游数据。
+ *
+ * 当上游对 Worker 的出口 IP 做了拦截（见 docs/upstream-access.md）时，
+ * 抓取由一台能访问上游的主机上的同步脚本完成，把这份已归一化的数据推给
+ * Worker。此时 Worker **不再自己调上游**，只做定价与落库。
+ */
+export interface PrefetchedCatalog {
+  products: SupplierProduct[];
+  categories: SupplierCategory[];
+}
+
 export async function syncSupplier(
   context: RelayKitContext,
   supplierId: string,
   now = new Date(),
+  prefetched?: PrefetchedCatalog,
 ): Promise<SyncReport> {
   const report: SyncReport = {
     supplierId,
@@ -61,7 +74,8 @@ export async function syncSupplier(
   };
 
   const adapter = context.suppliers.get(supplierId);
-  if (!adapter) {
+  // 有预取数据时不需要能连通的适配器 —— 抓取已经在别处完成了。
+  if (!adapter && !prefetched) {
     return { ...report, error: `配置里没有 id 为 "${supplierId}" 的上游` };
   }
 
@@ -70,9 +84,9 @@ export async function syncSupplier(
     return { ...report, error: `配置里没有 id 为 "${supplierId}" 的上游` };
   }
 
-  let upstream;
+  let upstream: SupplierProduct[];
   try {
-    upstream = await adapter.listProducts();
+    upstream = prefetched ? prefetched.products : await adapter!.listProducts();
   } catch (error) {
     // 上游挂了不该清空目录 —— 保留上一次的快照继续卖，比整站空货架好。
     return {
@@ -159,7 +173,12 @@ export async function syncSupplier(
   // 进货必定失败 —— 变成一笔要退款的订单和一次差评。
   report.delisted = await delistMissing(context, supplierId, syncedAt);
 
-  await syncCategories(context, supplierId, adapter, syncedAt);
+  await syncCategories(
+    context,
+    supplierId,
+    prefetched ? { categories: prefetched.categories } : adapter!,
+    syncedAt,
+  );
 
   return report;
 }
@@ -200,12 +219,15 @@ async function delistMissing(
 async function syncCategories(
   context: RelayKitContext,
   supplierId: string,
-  adapter: { listCategories(): Promise<import("@/supplier/types").SupplierCategory[]> },
+  source:
+    | { listCategories(): Promise<SupplierCategory[]> }
+    | { categories: SupplierCategory[] },
   syncedAt: string,
 ): Promise<void> {
-  let tree;
+  let tree: SupplierCategory[];
   try {
-    tree = await adapter.listCategories();
+    tree =
+      "categories" in source ? source.categories : await source.listCategories();
   } catch {
     // 分类拉不到不影响商品 —— 店面会退化成不分类的单一列表。
     return;

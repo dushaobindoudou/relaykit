@@ -14,3 +14,5 @@ playwright-report
 .vitest
 tsconfig.tsbuildinfo
 .wrangler
+relaykit.config.*.yaml
+relaykit.config.upstream.yaml
