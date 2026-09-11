@@ -24,7 +24,7 @@ import {
 // 运行时会去 node:net 上找这个并不存在的具名导出。
 import type { AddressInfo } from "node:net";
 
-import { generateSignature, type SignPayload } from "./signature.ts";
+import { generateSignature, type SignPayload } from "./signature";
 
 export interface MockProduct {
   code: string;

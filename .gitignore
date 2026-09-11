@@ -1,4 +1,12 @@
 node_modules
+.next
 .env
 .env.local
 dist
+*.db
+*.db-journal
+relaykit.config.yaml
+test-results
+playwright-report
+.vitest
+tsconfig.tsbuildinfo

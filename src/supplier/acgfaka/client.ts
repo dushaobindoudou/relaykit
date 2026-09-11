@@ -7,7 +7,7 @@
  * 不能用它判断成败）。
  */
 
-import { signedForm, type SignPayload } from "./signature.ts";
+import { signedForm, type SignPayload } from "./signature";
 import type {
   AmbiguityResolution,
   Decimal,
@@ -15,7 +15,7 @@ import type {
   PurchaseRequest,
   SupplierAdapter,
   SupplierProduct,
-} from "../types.ts";
+} from "@/supplier/types";
 
 export interface AcgFakaConfig {
   /** 上游站点根地址，不带尾部斜杠，例如 https://zhanghao66.com */

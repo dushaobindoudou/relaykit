@@ -13,9 +13,9 @@
 
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { test, describe } from "node:test";
+import { test, describe } from "vitest";
 
-import { buildSignBase, generateSignature, signedForm } from "./signature.ts";
+import { buildSignBase, generateSignature, signedForm } from "./signature";
 
 const md5 = (input: string): string =>
   createHash("md5").update(input, "utf8").digest("hex");

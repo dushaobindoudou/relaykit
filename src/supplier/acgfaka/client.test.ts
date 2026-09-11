@@ -7,11 +7,11 @@
  */
 
 import assert from "node:assert/strict";
-import { after, before, beforeEach, describe, test } from "node:test";
+import { afterEach, beforeEach, describe, test } from "vitest";
 
-import { AcgFakaAdapter } from "./client.ts";
-import { MockUpstream } from "./mock-upstream.ts";
-import type { PurchaseRequest } from "../types.ts";
+import { AcgFakaAdapter } from "./client";
+import { MockUpstream } from "./mock-upstream";
+import type { PurchaseRequest } from "@/supplier/types";
 
 const APP_ID = "42";
 const APP_KEY = "mock-app-key";
@@ -45,7 +45,9 @@ const request = (overrides: Partial<PurchaseRequest> = {}): PurchaseRequest => (
   ...overrides,
 });
 
-before(async () => {
+// 每个用例一份全新的假上游：库存和余额都是会被下单改写的状态，
+// 共用一份会让用例之间按执行顺序互相影响（典型表现是单独跑过、一起跑就挂）。
+beforeEach(async () => {
   upstream = new MockUpstream({
     appId: APP_ID,
     appKey: APP_KEY,
@@ -53,24 +55,16 @@ before(async () => {
     initialBalance: "1000",
   });
   domain = await upstream.start();
-});
-
-after(async () => {
-  await upstream.stop();
-});
-
-beforeEach(() => {
-  // 每个用例一份干净的商品/余额/订单状态，避免相互串扰。
-  Object.assign(upstream, {});
-  for (const key of Object.keys(upstream.faults)) {
-    delete (upstream.faults as Record<string, unknown>)[key];
-  }
   adapter = new AcgFakaAdapter({
     domain,
     appId: APP_ID,
     appKey: APP_KEY,
     timeoutMs: 1_500,
   });
+});
+
+afterEach(async () => {
+  await upstream.stop();
 });
 
 describe("鉴权", () => {

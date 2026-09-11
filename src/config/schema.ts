@@ -1,0 +1,221 @@
+/**
+ * RelayKit 配置契约。
+ *
+ * 这个文件是项目对使用者的全部承诺：一份 YAML 就该能把店开起来，不用改代码。
+ * 所以 schema 的取舍原则是 —— **能推断的不要求填，但凡涉及钱的就必须显式写**。
+ * 汇率、加价、最低毛利这几项没有"合理默认值"，猜错了就是赔本卖，一律强制填写。
+ */
+
+import { z } from "zod";
+
+/** 十进制金额：用字符串传递，绝不落成 number。允许负号是为了让加价支持折扣场景。 */
+const decimalString = z
+  .string()
+  .regex(/^-?\d+(\.\d+)?$/, "必须是十进制数字字符串，例如 \"1.5\"（不要用科学计数法）");
+
+/** 非负十进制。 */
+const positiveDecimalString = z
+  .string()
+  .regex(/^\d+(\.\d+)?$/, "必须是非负的十进制数字字符串，例如 \"1.5\"");
+
+const currencyCode = z
+  .string()
+  .regex(/^[A-Z0-9]{2,10}$/, "货币代码请用大写字母或数字，例如 USDT、CNY");
+
+// ———————————————————————————————— 店铺 ————————————————————————————————
+
+export const storeSchema = z.object({
+  name: z.string().min(1),
+  /** 面向客户展示与结算的币种。 */
+  currency: currencyCode.default("USDT"),
+  locale: z.enum(["en", "zh-CN"]).default("en"),
+  /** 出现在页脚与订单页；留空则不展示联系入口。 */
+  supportUrl: z.string().url().optional(),
+  supportEmail: z.string().email().optional(),
+  /** 用于生成订单页绝对链接与 SEO canonical。 */
+  baseUrl: z.string().url(),
+});
+
+// ——————————————————————————————— 上游供货 ———————————————————————————————
+
+export const supplierSchema = z.object({
+  /** 本地标识，出现在订单记录与后台，改名会导致历史订单对不上，定了就别改。 */
+  id: z.string().regex(/^[a-z0-9-]+$/, "只允许小写字母、数字和连字符"),
+  /**
+   * 驱动类型。mock 是内置的假上游，用于本地开发与演示 —— 它不碰真钱，
+   * 所以可以放心用它跑通全流程再接真站。
+   */
+  driver: z.enum(["acgfaka", "mock"]),
+  domain: z.string().url().optional(),
+  appId: z.string().optional(),
+  appKey: z.string().optional(),
+  timeoutMs: z.number().int().min(1_000).max(120_000).default(20_000),
+  /** 上游的结算币种。与 store.currency 不同时必须配置 pricing.fx 汇率。 */
+  currency: currencyCode.default("CNY"),
+}).superRefine((value, ctx) => {
+  // acgfaka 驱动必须有三件套，缺一个都连不上。在 schema 层拦住，
+  // 好过等到第一笔真实订单才报"商户ID不存在"。
+  if (value.driver !== "acgfaka") return;
+  for (const field of ["domain", "appId", "appKey"] as const) {
+    if (!value[field]) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [field],
+        message: `driver 为 acgfaka 时必须配置 ${field}`,
+      });
+    }
+  }
+});
+
+// ———————————————————————————————— 定价 ————————————————————————————————
+
+export const markupSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("fixed"),
+    /** 以 store.currency 计的固定加价，例如 "1.0" 表示每单赚 1 USDT。 */
+    amount: decimalString,
+  }),
+  z.object({
+    type: z.literal("percent"),
+    /** 百分比加价，"15" 表示在成本上加 15%。 */
+    amount: decimalString,
+  }),
+]);
+
+export const fxSchema = z.discriminatedUnion("source", [
+  z.object({
+    source: z.literal("static"),
+    /**
+     * 形如 { "CNY_USDT": "0.1389" }，含义是「1 CNY = 0.1389 USDT」。
+     * 静态汇率适合起步阶段，但**它不会自己更新** —— 配合 maxStalenessHours
+     * 用，过期就停止上架而不是继续按老汇率卖。
+     */
+    rates: z.record(
+      z.string().regex(/^[A-Z0-9]+_[A-Z0-9]+$/, "汇率键格式为 FROM_TO，例如 CNY_USDT"),
+      positiveDecimalString,
+    ),
+    /** 配置写入时间，用于判断静态汇率是否已经陈旧。 */
+    updatedAt: z.string().datetime().optional(),
+  }),
+  z.object({
+    source: z.literal("coingecko"),
+    /** 免费接口有速率限制，拉取间隔别设太小。 */
+    refreshMinutes: z.number().int().min(5).default(30),
+  }),
+]);
+
+export const pricingSchema = z.object({
+  fx: fxSchema,
+  /** 默认加价规则。 */
+  markup: markupSchema,
+  /**
+   * 最低毛利护栏。汇率跳动或上游涨价都可能让售价跌到成本线下，
+   * 低于这个百分比的商品会被**自动下架**而不是继续卖。
+   * 设成 0 等于关闭保护 —— 除非你清楚自己在做什么，否则别这么干。
+   */
+  minMarginPercent: z.number().min(0).max(100).default(3),
+  /**
+   * 汇率允许的最大漂移。超过时停止自动改价并告警，避免行情剧烈波动时
+   * 按错误汇率成交。
+   */
+  maxDriftPercent: z.number().min(0).max(100).default(10),
+  /** 汇率超过这个时长未更新就视为不可信，停止上架。 */
+  maxStalenessHours: z.number().min(0).default(24),
+  rounding: z
+    .object({
+      /** up = 永远向上取整到 increment（保护毛利）；nearest = 四舍五入。 */
+      mode: z.enum(["up", "nearest"]).default("up"),
+      increment: positiveDecimalString.default("0.01"),
+    })
+    .default({ mode: "up", increment: "0.01" }),
+  /** 针对单个商品覆盖默认加价。 */
+  overrides: z
+    .array(
+      z.object({
+        supplier: z.string(),
+        /** 上游商品的对接 CODE。 */
+        code: z.string(),
+        /** 留空表示该商品的所有规格。 */
+        race: z.string().optional(),
+        markup: markupSchema,
+      }),
+    )
+    .default([]),
+});
+
+// ———————————————————————————————— 收款 ————————————————————————————————
+
+export const chainSchema = z.object({
+  id: z.enum(["polygon", "bsc", "tron", "ethereum"]),
+  enabled: z.boolean().default(true),
+  /** 收款地址。**这是钱的去处，配错等于把收入送给别人**，部署前务必核对。 */
+  address: z.string().min(1),
+  /**
+   * 入账所需确认数。给低了会有重组风险，给高了客户等得久。
+   * 默认值按各链的常见安全线给，金额大的场景应当调高。
+   */
+  confirmations: z.number().int().min(1).default(12),
+  /** 自定义 RPC；留空则用内置的公共节点（有速率限制，生产环境建议自备）。 */
+  rpcUrl: z.string().url().optional(),
+  /** 该链上的 USDT 合约地址；留空用内置的官方合约。 */
+  tokenAddress: z.string().optional(),
+});
+
+export const paymentsSchema = z.object({
+  /** 付款窗口，超时未支付自动关单并释放库存占用。 */
+  windowMinutes: z.number().int().min(5).max(720).default(30),
+  chains: z.array(chainSchema).min(1, "至少要启用一条收款链"),
+  /**
+   * 金额打标：同一个收款地址靠唯一的小数尾数区分订单，省掉为每单派生地址
+   * 的密钥管理。代价是并发订单数受尾数空间限制 —— decimals 给太小会导致
+   * 高峰期分配不出唯一金额。
+   */
+  amountTagging: z
+    .object({
+      enabled: z.boolean().default(true),
+      decimals: z.number().int().min(2).max(6).default(4),
+    })
+    .default({ enabled: true, decimals: 4 }),
+});
+
+// ——————————————————————————————— 履约与告警 ———————————————————————————————
+
+export const fulfillmentSchema = z.object({
+  /** auto = 收款确认后自动向上游下单；manual = 只记账，人工发货。 */
+  mode: z.enum(["auto", "manual"]).default("auto"),
+  /**
+   * 上游余额低于此值时告警。余额耗尽会让**整站停摆且客户已付款**，
+   * 阈值至少留够三天流水。
+   */
+  balanceAlertThreshold: positiveDecimalString.default("100"),
+  /** 上游余额不足时是否自动把商品下架，避免继续收钱却发不出货。 */
+  haltSalesOnLowBalance: z.boolean().default(true),
+});
+
+export const alertsSchema = z
+  .object({
+    /** 收到 JSON POST 的通用 webhook，可对接飞书/Slack/TG Bot。 */
+    webhookUrl: z.string().url().optional(),
+    telegram: z
+      .object({ botToken: z.string(), chatId: z.string() })
+      .optional(),
+  })
+  .default({});
+
+// ———————————————————————————————— 总配置 ————————————————————————————————
+
+export const configSchema = z.object({
+  store: storeSchema,
+  suppliers: z.array(supplierSchema).min(1, "至少要配置一个上游供货商"),
+  pricing: pricingSchema,
+  payments: paymentsSchema,
+  fulfillment: fulfillmentSchema.default({}),
+  alerts: alertsSchema,
+});
+
+export type RelayKitConfig = z.infer<typeof configSchema>;
+export type SupplierConfig = z.infer<typeof supplierSchema>;
+export type MarkupConfig = z.infer<typeof markupSchema>;
+export type PricingConfig = z.infer<typeof pricingSchema>;
+export type ChainConfig = z.infer<typeof chainSchema>;
+export type PaymentsConfig = z.infer<typeof paymentsSchema>;
