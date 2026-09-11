@@ -14,6 +14,9 @@ import { orderEvents, orders, type Order } from "@/db/schema";
 import type { RelayKitContext } from "@/runtime/context";
 import { transition, type OrderEvent, type OrderStatus } from "@/orders/state";
 import type { PurchaseRequest } from "@/supplier/types";
+import * as ledger from "@/accounts/balance";
+import * as couponService from "@/pricing/coupon";
+import type { User } from "@/db/schema";
 
 /** 订单号：可读、可口述、不暴露总单量。 */
 function newOrderId(): string {
@@ -89,7 +92,13 @@ export interface CreateOrderInput {
   contactEmail: string;
   /** 客户自设的订单查询口令。 */
   queryPassword: string;
-  chainId: string;
+  /** 链上支付时必填；余额支付时忽略。 */
+  chainId?: string;
+  /** "balance" 走余额扣款并立即进入待发货；其余走链上收款。 */
+  payMethod?: "chain" | "balance";
+  /** 登录用户。余额支付必须有。 */
+  user?: User | null;
+  couponCode?: string;
 }
 
 export type CreateOrderResult =
@@ -118,18 +127,25 @@ export async function createOrder(
   input: CreateOrderInput,
 ): Promise<CreateOrderResult> {
   const { config } = context;
+  const payMethod = input.payMethod ?? "chain";
 
-  const chain = config.payments.chains.find(
-    (item) => item.id === input.chainId && item.enabled,
-  );
-  if (!chain) return { ok: false, error: "该收款方式不可用" };
+  if (payMethod === "balance" && !input.user) {
+    return { ok: false, error: "余额支付需要先登录" };
+  }
 
-  // 占位地址绝不能进入真实订单 —— 客户会把钱打到一个我们控制不了的地方。
-  if (isPlaceholderAddress(chain.address)) {
-    return {
-      ok: false,
-      error: "该收款方式尚未配置完成，暂时无法下单",
-    };
+  // —— 链上支付：先确认这条链真的能收钱 ——
+  let chain = null as (typeof config.payments.chains)[number] | null;
+  if (payMethod === "chain") {
+    chain =
+      config.payments.chains.find(
+        (item) => item.id === input.chainId && item.enabled,
+      ) ?? null;
+    if (!chain) return { ok: false, error: "该收款方式不可用" };
+
+    // 占位地址绝不能进入真实订单 —— 客户会把钱打到一个我们控制不了的地方。
+    if (isPlaceholderAddress(chain.address)) {
+      return { ok: false, error: "该收款方式尚未配置完成，暂时无法下单" };
+    }
   }
 
   const product = await findProduct(context, input.supplierId, input.code, input.race);
@@ -157,52 +173,140 @@ export async function createOrder(
     }
   }
 
-  const total = (Number(product.price) * input.quantity).toFixed(2);
+  // —— 定价：阶梯价 → 小计 → 优惠券 ——
+  const unitPrice = resolveUnitPrice(product, input.quantity);
+  const subtotal = (Number(unitPrice) * input.quantity).toFixed(2);
+  const costTotal = (Number(product.cost) * input.quantity).toFixed(2);
+
+  let discount = "0";
+  let total = subtotal;
+  const identity = input.user?.id ?? input.contactEmail.toLowerCase();
+
+  if (input.couponCode) {
+    const check = await couponService.validate(context, {
+      code: input.couponCode,
+      subtotal,
+      cost: costTotal,
+      productCode: input.code,
+      identity,
+      minMarginPercent: config.pricing.minMarginPercent,
+    });
+
+    if (!check.ok) {
+      return { ok: false, error: couponError(check.reason, check.detail) };
+    }
+    discount = check.discount;
+    total = check.payable;
+  }
+
   const now = new Date();
-  const windowEnd = new Date(
-    now.getTime() + config.payments.windowMinutes * 60_000,
-  );
+  const windowEnd = new Date(now.getTime() + config.payments.windowMinutes * 60_000);
   const decimals = config.payments.amountTagging.enabled
     ? config.payments.amountTagging.decimals
     : 2;
 
-  // 唯一金额可能撞号，重试几次。撞满说明尾数空间不够，应当调大 decimals。
-  for (let attempt = 0; attempt < 5; attempt += 1) {
+  const base = {
+    supplierId: input.supplierId,
+    productCode: input.code,
+    race: input.race,
+    productName: product.name,
+    quantity: input.quantity,
+    priceTotal: total,
+    costSnapshot: costTotal,
+    fxRate: "1",
+    currency: config.store.currency,
+    couponCode: input.couponCode ? input.couponCode.trim().toUpperCase() : null,
+    discount,
+    userId: input.user?.id ?? null,
+    payMethod,
+    contactEmail: input.contactEmail,
+    queryPasswordHash: await hashPassword(input.queryPassword),
+    createdAt: now.toISOString(),
+    updatedAt: now.toISOString(),
+  };
+
+  // —— 余额支付：扣款成功即视为已付款，无需链上等待 ——
+  if (payMethod === "balance") {
+    const orderId = newOrderId();
+
+    // 先扣款再建单。反过来的话，扣款失败会留下一张永远付不了的订单；
+    // 而这个顺序下最坏情况是扣了款没建单，那是有流水可查、可人工补的。
+    const charged = await ledger.postWithRetry(context, {
+      userId: input.user!.id,
+      kind: "spend",
+      amount: `-${total}`,
+      orderId,
+      note: product.name,
+    });
+
+    if (!charged.ok) {
+      return {
+        ok: false,
+        error:
+          charged.error === "insufficient_funds"
+            ? "余额不足，请先充值"
+            : "扣款失败，请重试",
+      };
+    }
+
     const row = {
-      id: newOrderId(),
-      status: "awaiting_payment" as const,
-      supplierId: input.supplierId,
-      productCode: input.code,
-      race: input.race,
-      productName: product.name,
-      quantity: input.quantity,
-      priceTotal: total,
-      costSnapshot: product.cost,
-      fxRate: "1",
-      currency: config.store.currency,
+      ...base,
+      id: orderId,
+      status: "paid" as const,
       requestNo: newRequestNo(),
-      chainId: chain.id,
-      payAddress: chain.address,
+      paidAt: now.toISOString(),
+      payAmount: total,
+    };
+
+    await context.db.insert(orders).values(row);
+    await context.db.insert(orderEvents).values({
+      orderId,
+      eventType: "payment_confirmed",
+      fromStatus: "draft",
+      toStatus: "paid",
+      accepted: true,
+      detail: JSON.stringify({ payMethod: "balance", amount: total }),
+      createdAt: now.toISOString(),
+    });
+
+    if (input.couponCode) {
+      await couponService.redeem(context, input.couponCode, orderId, identity, discount);
+    }
+
+    return { ok: true, order: row as unknown as Order };
+  }
+
+  // —— 链上支付：分配唯一收款金额 ——
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const orderId = newOrderId();
+    const row = {
+      ...base,
+      id: orderId,
+      status: "awaiting_payment" as const,
+      requestNo: newRequestNo(),
+      chainId: chain!.id,
+      payAddress: chain!.address,
       payAmount: taggedAmount(total, decimals, attempt),
       payWindowEndsAt: windowEnd.toISOString(),
-      contactEmail: input.contactEmail,
-      queryPasswordHash: await hashPassword(input.queryPassword),
-      createdAt: now.toISOString(),
-      updatedAt: now.toISOString(),
     };
 
     try {
       await context.db.insert(orders).values(row);
       await context.db.insert(orderEvents).values({
-        orderId: row.id,
+        orderId,
         eventType: "payment_requested",
         fromStatus: "draft",
         toStatus: "awaiting_payment",
         accepted: true,
-        detail: JSON.stringify({ chain: chain.id, amount: row.payAmount }),
+        detail: JSON.stringify({ chain: chain!.id, amount: row.payAmount }),
         createdAt: now.toISOString(),
       });
-      return { ok: true, order: row as Order };
+
+      if (input.couponCode) {
+        await couponService.redeem(context, input.couponCode, orderId, identity, discount);
+      }
+
+      return { ok: true, order: row as unknown as Order };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       // 只有唯一约束冲突才重试；其它错误直接上报，不要吞掉。
@@ -218,6 +322,59 @@ export async function createOrder(
       "当前下单量较大，暂时分配不出唯一收款金额，请稍后重试。" +
       "（管理员：调大 payments.amountTagging.decimals）",
   };
+}
+
+/**
+ * 批发阶梯价：买得多单价更低。
+ *
+ * 阶梯存的是**我们对客**的价格，不是上游给我们的进货阶梯 —— 混淆会导致
+ * 按进货价卖给客户。取满足 minQty 的最后一档（阶梯按 minQty 升序存）。
+ */
+export function resolveUnitPrice(
+  product: { price: string | null; wholesaleTiers: string | null },
+  quantity: number,
+): string {
+  const base = product.price ?? "0";
+  if (!product.wholesaleTiers) return base;
+
+  try {
+    const tiers = JSON.parse(product.wholesaleTiers) as {
+      minQty: number;
+      price: string;
+    }[];
+    let chosen = base;
+    for (const tier of tiers) {
+      if (quantity >= tier.minQty) chosen = tier.price;
+    }
+    // 阶梯价高于原价说明配置有误，此时按原价走 —— 绝不因为配置错误多收客户钱。
+    return Number(chosen) < Number(base) ? chosen : base;
+  } catch {
+    return base;
+  }
+}
+
+function couponError(reason: couponService.CouponRejection, detail?: string): string {
+  switch (reason) {
+    case "not_found":
+      return "优惠码不存在";
+    case "inactive":
+      return "该优惠码已停用";
+    case "expired":
+      return "该优惠码已过期";
+    case "usage_limit":
+      return "该优惠码已被领完";
+    case "per_user_limit":
+      return "你已使用过该优惠码";
+    case "min_amount":
+      return `订单金额需满 ${detail} 才能使用该优惠码`;
+    case "wrong_product":
+      return "该优惠码不适用于此商品";
+    case "below_cost":
+      // 不告诉客户「毛利不足」—— 那是我们的成本信息。
+      return "该优惠码不适用于此商品";
+    default:
+      return "优惠码不可用";
+  }
 }
 
 // ———————————————————————————— 查询 ————————————————————————————

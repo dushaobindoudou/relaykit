@@ -78,7 +78,16 @@ export const orders = sqliteTable(
     /** 进入人工队列的原因，直接展示在后台待办里。 */
     reviewReason: text("review_reason"),
 
+    // —— 优惠 ——
+    couponCode: text("coupon_code"),
+    /** 优惠减免额，以 currency 计。priceTotal 是**减免后**的应付额。 */
+    discount: text("discount").notNull().default("0"),
+
     // —— 客户 ——
+    /** 登录用户下单时记录；匿名下单为 null。 */
+    userId: text("user_id"),
+    /** balance = 余额支付；其余为链上支付。 */
+    payMethod: text("pay_method").notNull().default("chain"),
     contactEmail: text("contact_email"),
     /** 订单查询口令的哈希，绝不存明文。 */
     queryPasswordHash: text("query_password_hash"),
@@ -102,6 +111,10 @@ export const orders = sqliteTable(
     index("orders_created_at_idx").on(table.createdAt),
     // 收款监听按 (链, 金额) 反查待付订单，这条索引直接决定轮询的开销。
     index("orders_chain_amount_idx").on(table.chainId, table.payAmount),
+    // 「我的订单」按用户倒序列出。
+    index("orders_user_idx").on(table.userId, table.createdAt),
+    // 按邮箱查单（原站的订单查询方式）。
+    index("orders_contact_idx").on(table.contactEmail),
   ],
 );
 
@@ -198,6 +211,14 @@ export const products = sqliteTable(
     description: text("description"),
     /** 上游标签，逗号分隔。 */
     tags: text("tags"),
+    /**
+     * 批发阶梯价，JSON：[{minQty, price}]，按 minQty 升序。
+     * 上游的 category_wholesale 是它给我们的进货阶梯，这里存的是**我们对客**
+     * 的阶梯 —— 两者不是一回事，混淆会导致按进货价卖给客户。
+     */
+    wholesaleTiers: text("wholesale_tiers"),
+    /** 缺货时是否允许下预订单。原站的做法：避免客户流失到同行。 */
+    reservable: integer("reservable", { mode: "boolean" }).notNull().default(false),
     /** 为 false 时不在店面展示，reason 说明原因（毛利不足 / 汇率过期 / 缺货）。 */
     sellable: integer("sellable", { mode: "boolean" }).notNull().default(false),
     unsellableReason: text("unsellable_reason"),
@@ -245,3 +266,191 @@ export type Order = typeof orders.$inferSelect;
 export type NewOrder = typeof orders.$inferInsert;
 export type OrderEvent = typeof orderEvents.$inferSelect;
 export type Product = typeof products.$inferSelect;
+
+// ═══════════════════════════════════════════════════════════════════════
+// 账号体系
+//
+// 原站有注册/登录/余额/购买记录。余额尤其重要 —— 它把「每单都走一次链上
+// 转账」变成「充一次、买多次」，既省掉每单的链上手续费，也让复购几乎零摩擦。
+// ═══════════════════════════════════════════════════════════════════════
+
+export const users = sqliteTable(
+  "users",
+  {
+    id: text("id").primaryKey(),
+    email: text("email").notNull(),
+    /** scrypt/PBKDF2 派生值，绝不存明文也不存裸 SHA。 */
+    passwordHash: text("password_hash").notNull(),
+    /** 余额，以店铺展示币计。十进制字符串。 */
+    balance: text("balance").notNull().default("0"),
+    /** 累计消费额，用于将来的会员等级。 */
+    totalSpent: text("total_spent").notNull().default("0"),
+    createdAt: timestamp("created_at").notNull(),
+  },
+  (table) => [uniqueIndex("users_email_unique").on(table.email)],
+);
+
+export const sessions = sqliteTable(
+  "sessions",
+  {
+    /** 随机 token 的哈希。库被读到也不能直接拿来冒充登录。 */
+    tokenHash: text("token_hash").primaryKey(),
+    userId: text("user_id").notNull(),
+    expiresAt: timestamp("expires_at").notNull(),
+    createdAt: timestamp("created_at").notNull(),
+  },
+  (table) => [index("sessions_user_idx").on(table.userId)],
+);
+
+/**
+ * 余额流水。
+ *
+ * 余额本身是 users.balance 上的一个数，但**任何一次变动都必须有对应流水**。
+ * 没有流水的余额是查不清的账：客户说少了 10 块，你无法证明。
+ */
+export const balanceTransactions = sqliteTable(
+  "balance_transactions",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    userId: text("user_id").notNull(),
+    /** topup = 充值；spend = 下单扣款；refund = 退款回充；adjust = 人工调整。 */
+    kind: text("kind").notNull(),
+    /** 带符号的变动额。充值为正，消费为负。 */
+    amount: text("amount").notNull(),
+    /** 变动后的余额，便于对账时逐笔核验。 */
+    balanceAfter: text("balance_after").notNull(),
+    orderId: text("order_id"),
+    note: text("note"),
+    createdAt: timestamp("created_at").notNull(),
+  },
+  (table) => [index("balance_tx_user_idx").on(table.userId, table.createdAt)],
+);
+
+/**
+ * 充值单。
+ *
+ * 与商品订单共用同一套链上收款机制（唯一金额打标），但结果不是发卡密，
+ * 而是给余额加钱。单独成表是因为它没有商品、没有上游进货这两个概念。
+ */
+export const topups = sqliteTable(
+  "topups",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    status: text("status").notNull().default("awaiting_payment"),
+    /** 到账后计入余额的金额。 */
+    amount: text("amount").notNull(),
+    chainId: text("chain_id").notNull(),
+    payAddress: text("pay_address").notNull(),
+    /** 打标后的唯一金额，与 orders.payAmount 同一套尾数空间。 */
+    payAmount: text("pay_amount").notNull(),
+    payWindowEndsAt: timestamp("pay_window_ends_at").notNull(),
+    paidTxHash: text("paid_tx_hash"),
+    createdAt: timestamp("created_at").notNull(),
+    updatedAt: timestamp("updated_at").notNull(),
+  },
+  (table) => [
+    // 与订单同理：待付充值单的金额在链上必须唯一，否则无法归属到账。
+    uniqueIndex("topups_pay_amount_open_unique")
+      .on(table.chainId, table.payAmount)
+      .where(sql`status = 'awaiting_payment'`),
+    index("topups_user_idx").on(table.userId, table.createdAt),
+  ],
+);
+
+// ═══════════════════════════════════════════════════════════════════════
+// 优惠券
+// ═══════════════════════════════════════════════════════════════════════
+
+export const coupons = sqliteTable(
+  "coupons",
+  {
+    code: text("code").primaryKey(),
+    /** percent = 按比例折扣；amount = 直接减固定金额。 */
+    kind: text("kind").notNull(),
+    /** percent 时是 0-100 的折扣百分比；amount 时是减免金额。 */
+    value: text("value").notNull(),
+    /** 订单金额下限，低于此值不可用。 */
+    minAmount: text("min_amount").notNull().default("0"),
+    /** 总可用次数；null 表示不限。 */
+    usageLimit: integer("usage_limit"),
+    usedCount: integer("used_count").notNull().default(0),
+    /** 每个用户可用次数；null 表示不限。匿名下单按邮箱计。 */
+    perUserLimit: integer("per_user_limit"),
+    /** 限定商品；留空表示全场通用。 */
+    productCode: text("product_code"),
+    expiresAt: timestamp("expires_at"),
+    active: integer("active", { mode: "boolean" }).notNull().default(true),
+    createdAt: timestamp("created_at").notNull(),
+  },
+  (table) => [index("coupons_active_idx").on(table.active)],
+);
+
+/** 核销记录。用于 perUserLimit 判定与事后对账。 */
+export const couponRedemptions = sqliteTable(
+  "coupon_redemptions",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    code: text("code").notNull(),
+    orderId: text("order_id").notNull(),
+    /** 登录用户为 userId，匿名下单为邮箱。 */
+    identity: text("identity").notNull(),
+    discount: text("discount").notNull(),
+    createdAt: timestamp("created_at").notNull(),
+  },
+  (table) => [
+    uniqueIndex("coupon_redemptions_order_unique").on(table.orderId),
+    index("coupon_redemptions_identity_idx").on(table.code, table.identity),
+  ],
+);
+
+// ═══════════════════════════════════════════════════════════════════════
+// 站点内容：公告与帮助文章
+// ═══════════════════════════════════════════════════════════════════════
+
+export const announcements = sqliteTable(
+  "announcements",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    title: text("title").notNull(),
+    /** 富文本正文。 */
+    body: text("body").notNull(),
+    /** 顶部通栏展示的一句话；留空则只在弹窗里出现。 */
+    bannerText: text("banner_text"),
+    active: integer("active", { mode: "boolean" }).notNull().default(true),
+    /** 首次访问是否弹窗。原站的做法，转化率影响明显。 */
+    popup: integer("popup", { mode: "boolean" }).notNull().default(false),
+    sort: integer("sort").notNull().default(0),
+    updatedAt: timestamp("updated_at").notNull(),
+  },
+  (table) => [index("announcements_active_idx").on(table.active, table.sort)],
+);
+
+/**
+ * 帮助中心文章。
+ *
+ * 除了客服价值，这些是**站内唯一可以自由撰写的可索引内容** ——
+ * 商品页的文案受上游限制，教程页不受限，是自然流量的主要来源。
+ */
+export const articles = sqliteTable(
+  "articles",
+  {
+    slug: text("slug").primaryKey(),
+    title: text("title").notNull(),
+    /** 列表页与 meta description 用的摘要。 */
+    summary: text("summary"),
+    body: text("body").notNull(),
+    published: integer("published", { mode: "boolean" }).notNull().default(true),
+    /** 置顶。 */
+    pinned: integer("pinned", { mode: "boolean" }).notNull().default(false),
+    sort: integer("sort").notNull().default(0),
+    updatedAt: timestamp("updated_at").notNull(),
+  },
+  (table) => [index("articles_published_idx").on(table.published, table.sort)],
+);
+
+export type User = typeof users.$inferSelect;
+export type Coupon = typeof coupons.$inferSelect;
+export type Announcement = typeof announcements.$inferSelect;
+export type Article = typeof articles.$inferSelect;
+export type Topup = typeof topups.$inferSelect;

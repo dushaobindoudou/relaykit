@@ -15,6 +15,13 @@
       "when": 1789104482320,
       "tag": "0001_categories",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1789105245516,
+      "tag": "0002_accounts-coupons-content",
+      "breakpoints": true
     }
   ]
 }
