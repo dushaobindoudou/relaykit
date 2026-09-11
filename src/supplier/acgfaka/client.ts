@@ -14,6 +14,7 @@ import type {
   PurchaseOutcome,
   PurchaseRequest,
   SupplierAdapter,
+  SupplierCategory,
   SupplierProduct,
 } from "@/supplier/types";
 
@@ -91,6 +92,19 @@ function toDecimal(value: unknown, fallback: Decimal = "0"): Decimal {
   if (typeof value === "string" && value.trim() !== "") return value.trim();
   if (typeof value === "number" && Number.isFinite(value)) return String(value);
   return fallback;
+}
+
+/** 上游的 tags 有时是数组有时是逗号分隔的串，统一成数组。 */
+function toTags(row: Record<string, unknown>): string[] {
+  const list = row.tags_list;
+  if (Array.isArray(list)) return list.map(String).filter(Boolean);
+  if (typeof row.tags === "string") {
+    return row.tags
+      .split(/[,，、;；|｜\s]+/)
+      .map((tag) => tag.trim())
+      .filter(Boolean);
+  }
+  return [];
 }
 
 function toCount(value: unknown): number {
@@ -177,7 +191,11 @@ export class AcgFakaAdapter implements SupplierAdapter {
    * category_factory 是上游按**我们的身份**现算的拿货价（item 接口才有，
    * items 列表接口不带）。单规格商品则用顶层 price / factory_price。
    */
-  #toProduct(row: Record<string, unknown>, currencyCode: string): SupplierProduct {
+  #toProduct(
+    row: Record<string, unknown>,
+    currencyCode: string,
+    categoryId?: string,
+  ): SupplierProduct {
     const config = asRecord(row.config);
     const listTable = asRecord(config.category);
     const costTable = asRecord(config.category_factory);
@@ -200,14 +218,42 @@ export class AcgFakaAdapter implements SupplierAdapter {
       if (factory !== undefined) costByRace[""] = toDecimal(factory);
     }
 
+    // 上游的 delivery_way：0 = 自动发卡密，1 = 人工发货。
+    const deliveryWay = toCount(row.delivery_way) === 1 ? "manual" : "auto";
+
+    // categoryId 优先用调用方从分类树上下文传进来的；items 的商品行里
+    // 也带 category_id，但 item 详情接口的口径不一定一致，以树为准。
+    const resolvedCategory =
+      categoryId ??
+      (row.category_id !== undefined && row.category_id !== null
+        ? String(row.category_id)
+        : undefined);
+
+    const cover = typeof row.cover === "string" && row.cover !== "" ? row.cover : undefined;
+    const stockText =
+      typeof row.stock === "string" && row.stock !== "" ? row.stock : undefined;
+    const description =
+      typeof row.description === "string" && row.description !== ""
+        ? row.description
+        : undefined;
+
     return {
       code: String(row.code ?? ""),
       name: String(row.name ?? ""),
+      deliveryWay,
+      tags: toTags(row),
       races,
       costByRace,
       listPriceByRace,
-      stock: toCount(row.stock),
+      // 上游隐藏库存数字时 stock 是文案（"充足"），toCount 会得到 0。
+      // 此时不能判成缺货 —— 那会把整站有货商品全部下架。给一个保守的正数，
+      // 真正的库存判定在下单前的 getStock 与进货那一步。
+      stock: stockText ? Math.max(1, toCount(row.stock)) : toCount(row.stock),
       currencyCode,
+      ...(cover ? { cover } : {}),
+      ...(resolvedCategory ? { categoryId: resolvedCategory } : {}),
+      ...(stockText ? { stockText } : {}),
+      ...(description ? { description } : {}),
     };
   }
 
@@ -218,14 +264,49 @@ export class AcgFakaAdapter implements SupplierAdapter {
     // items 返回的是 [{...分类, children: [...商品]}]，且商品价格是列表快照。
     // 注意上游源码注释明说 stock 是"尽力而为"的缓存读数，可能陈旧 —— 下单前
     // 必须用 getStock() 现拉，不能信这里的数字。
-    for (const category of Array.isArray(tree) ? tree : []) {
-      const children = asRecord(category).children;
+    for (const node of Array.isArray(tree) ? tree : []) {
+      const category = asRecord(node);
+      const categoryId = category.id !== undefined ? String(category.id) : undefined;
+      const children = category.children;
       for (const child of Array.isArray(children) ? children : []) {
-        products.push(this.#toProduct(asRecord(child), "UNKNOWN"));
+        products.push(this.#toProduct(asRecord(child), "UNKNOWN", categoryId));
       }
     }
 
     return products;
+  }
+
+  /**
+   * 分类树。
+   *
+   * 与 listProducts 打的是同一个接口 —— 上游把分类和商品揉在一次响应里，
+   * 分开拉会多打一次跨站请求。调用方通常紧挨着调这两个，代价可接受；
+   * 若将来成为瓶颈，应当改成一次拉取返回 {categories, products}。
+   */
+  async listCategories(): Promise<SupplierCategory[]> {
+    const tree = await this.#post("/shared/commodity/items", {});
+    const categories: SupplierCategory[] = [];
+
+    for (const [index, node] of (Array.isArray(tree) ? tree : []).entries()) {
+      const row = asRecord(node);
+      if (row.id === undefined || row.id === null) continue;
+
+      const icon = typeof row.icon === "string" && row.icon !== "" ? row.icon : undefined;
+      const parentId =
+        row.pid !== undefined && row.pid !== null && String(row.pid) !== ""
+          ? String(row.pid)
+          : undefined;
+
+      categories.push({
+        id: String(row.id),
+        name: String(row.name ?? ""),
+        sort: toCount(row.sort ?? index),
+        ...(icon ? { icon } : {}),
+        ...(parentId ? { parentId } : {}),
+      });
+    }
+
+    return categories;
   }
 
   async getProduct(code: string): Promise<SupplierProduct> {

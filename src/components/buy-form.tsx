@@ -24,20 +24,43 @@ interface Chain {
   confirmations: number;
 }
 
+/**
+ * 文案由服务端求值后传入。
+ *
+ * 不直接传整个字典：里面有函数型文案（`window(minutes)`），
+ * 而函数不能跨 RSC 边界序列化 —— 传了会在运行时静默变成 undefined。
+ */
+export interface BuyLabels {
+  option: string;
+  standard: string;
+  quantity: string;
+  email: string;
+  emailHint: string;
+  password: string;
+  passwordHint: string;
+  payWith: string;
+  total: string;
+  submit: string;
+  creating: string;
+  soldOut: string;
+  notConfigured: string;
+  window: string;
+}
+
 export function BuyForm({
   supplierId,
   code,
   currency,
   variants,
   chains,
-  windowMinutes,
+  labels,
 }: {
   supplierId: string;
   code: string;
   currency: string;
   variants: Variant[];
   chains: Chain[];
-  windowMinutes: number;
+  labels: BuyLabels;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -97,7 +120,7 @@ export function BuyForm({
     >
       {variants.length > 1 && (
         <fieldset>
-          <legend className="text-[13px] font-medium">Option</legend>
+          <legend className="text-[13px] font-medium">{labels.option}</legend>
           <div className="mt-2 grid gap-2">
             {variants.map((variant) => {
               const active = variant.race === race;
@@ -118,7 +141,7 @@ export function BuyForm({
                       checked={active}
                       onChange={() => setRace(variant.race)}
                     />
-                    <span className="truncate">{variant.race || "Standard"}</span>
+                    <span className="truncate">{variant.race || labels.standard}</span>
                   </span>
                   <span className="numeric shrink-0 font-medium">{variant.price}</span>
                 </label>
@@ -130,7 +153,7 @@ export function BuyForm({
 
       <div className={variants.length > 1 ? "mt-5" : ""}>
         <label htmlFor="quantity" className="text-[13px] font-medium">
-          Quantity
+          {labels.quantity}
         </label>
         <input
           id="quantity"
@@ -145,7 +168,7 @@ export function BuyForm({
 
       <div className="mt-4">
         <label htmlFor="email" className="text-[13px] font-medium">
-          Email
+          {labels.email}
         </label>
         <input
           id="email"
@@ -157,13 +180,13 @@ export function BuyForm({
           placeholder="you@example.com"
         />
         <p className="mt-1.5 text-[12px] text-[var(--text-faint)]">
-          Used to find your order later. Not shared.
+          {labels.emailHint}
         </p>
       </div>
 
       <div className="mt-4">
         <label htmlFor="password" className="text-[13px] font-medium">
-          Order password
+          {labels.password}
         </label>
         <input
           id="password"
@@ -175,13 +198,13 @@ export function BuyForm({
           className={`${fieldClass} mt-2`}
         />
         <p className="mt-1.5 text-[12px] text-[var(--text-faint)]">
-          Set any password. You need it to view your code again.
+          {labels.passwordHint}
         </p>
       </div>
 
       {chains.length > 1 && (
         <fieldset className="mt-4">
-          <legend className="text-[13px] font-medium">Pay with</legend>
+          <legend className="text-[13px] font-medium">{labels.payWith}</legend>
           <div className="mt-2 flex flex-wrap gap-2">
             {chains.map((chain) => (
               <label
@@ -207,7 +230,7 @@ export function BuyForm({
       )}
 
       <div className="mt-6 flex items-baseline justify-between border-t border-[var(--line)] pt-4">
-        <span className="text-[13px] text-[var(--text-muted)]">Total</span>
+        <span className="text-[13px] text-[var(--text-muted)]">{labels.total}</span>
         <span className="numeric text-[22px] font-semibold">
           {total}
           <span className="ml-1.5 font-sans text-[13px] font-normal text-[var(--text-faint)]">
@@ -231,16 +254,16 @@ export function BuyForm({
         className="mt-4 inline-flex h-11 w-full items-center justify-center rounded-[var(--radius-card)] bg-[var(--accent)] text-[14px] font-medium text-[var(--accent-fg)] transition-[background-color,transform] hover:bg-[var(--accent-hover)] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-45"
       >
         {noChain
-          ? "Payment not configured"
+          ? labels.notConfigured
           : soldOut
-            ? "Out of stock"
+            ? labels.soldOut
             : pending
-              ? "Creating order…"
-              : "Continue to payment"}
+              ? labels.creating
+              : labels.submit}
       </button>
 
       <p className="mt-3 text-center text-[12px] text-[var(--text-faint)]">
-        You will have {windowMinutes} minutes to send payment.
+        {labels.window}
       </p>
     </form>
   );

@@ -187,6 +187,17 @@ export const products = sqliteTable(
     cost: text("cost").notNull(),
     /** 算好的售价（店铺展示币）。不可售时为 null。 */
     price: text("price"),
+    /** 所属分类的 externalId。上游没有分类概念时为 null。 */
+    categoryId: text("category_id"),
+    cover: text("cover"),
+    /** auto = 自动发卡密；manual = 人工发货。客户对这两者的预期完全不同。 */
+    deliveryWay: text("delivery_way").notNull().default("auto"),
+    /** 上游给的库存文案（"充足"）。上游隐藏数字时只有这个。 */
+    stockText: text("stock_text"),
+    /** 商品详情富文本。 */
+    description: text("description"),
+    /** 上游标签，逗号分隔。 */
+    tags: text("tags"),
     /** 为 false 时不在店面展示，reason 说明原因（毛利不足 / 汇率过期 / 缺货）。 */
     sellable: integer("sellable", { mode: "boolean" }).notNull().default(false),
     unsellableReason: text("unsellable_reason"),
@@ -196,8 +207,39 @@ export const products = sqliteTable(
   (table) => [
     uniqueIndex("products_pk").on(table.supplierId, table.code, table.race),
     index("products_sellable_idx").on(table.sellable),
+    // 侧栏按分类筛选是最高频的查询。
+    index("products_category_idx").on(table.categoryId, table.sellable),
   ],
 );
+
+/**
+ * 商品分类快照。
+ *
+ * 发卡站的商品挂在分类树下，丢掉分类就没法还原它的浏览结构 ——
+ * 而"按分类浏览"正是买家在这类站上的主要动作。
+ */
+export const categories = sqliteTable(
+  "categories",
+  {
+    supplierId: text("supplier_id").notNull(),
+    /** 上游的分类 id。 */
+    externalId: text("external_id").notNull(),
+    name: text("name").notNull(),
+    icon: text("icon"),
+    /** 父分类的 externalId；顶级分类为 null。 */
+    parentId: text("parent_id"),
+    sort: integer("sort").notNull().default(0),
+    /** 该分类下可售商品数。为 0 的分类不在侧栏展示，避免点进去是空的。 */
+    sellableCount: integer("sellable_count").notNull().default(0),
+    syncedAt: timestamp("synced_at").notNull(),
+  },
+  (table) => [
+    uniqueIndex("categories_pk").on(table.supplierId, table.externalId),
+    index("categories_sort_idx").on(table.sort),
+  ],
+);
+
+export type Category = typeof categories.$inferSelect;
 
 export type Order = typeof orders.$inferSelect;
 export type NewOrder = typeof orders.$inferInsert;

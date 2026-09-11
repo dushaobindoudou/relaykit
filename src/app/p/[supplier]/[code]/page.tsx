@@ -14,8 +14,11 @@ import { getCloudflareContext } from "@opennextjs/cloudflare";
 
 import { getCatalogEntry } from "@/catalog/sync";
 import { isPlaceholderAddress } from "@/config/schema";
-import { Badge, Page, SiteFooter } from "@/components/site-chrome";
+import { Badge } from "@/components/site-chrome";
 import { BuyForm } from "@/components/buy-form";
+import { Shell } from "@/components/shell";
+import { listCategories } from "@/catalog/sync";
+import { getI18n } from "@/i18n";
 import { buildContext, type Bindings } from "@/runtime/context";
 
 export const dynamic = "force-dynamic";
@@ -91,77 +94,140 @@ export default async function ProductPage({ params }: Params) {
     })),
   };
 
+  const { locale, t } = await getI18n(config.store.locale);
+  const categories = await listCategories(context);
+
   return (
-    <>
+    <Shell
+      storeName={config.store.name}
+      currency={currency}
+      categories={categories}
+      activeCategoryId={entry.categoryId ?? undefined}
+      locale={locale}
+      t={t}
+      withSidebar={false}
+    >
       <script
         type="application/ld+json"
         // 内容全部来自我们自己的数据库，且经过 JSON.stringify 转义。
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <Page>
-        <nav className="text-[13px] text-[var(--text-faint)]">
-          <Link href="/" className="hover:text-[var(--text)]">
-            All products
-          </Link>
-        </nav>
 
-        <div className="mt-6 grid gap-12 lg:grid-cols-[1fr_380px] lg:gap-16">
-          <div className="min-w-0">
-            <h1 className="text-[28px] font-semibold leading-[1.2] tracking-[-0.02em] sm:text-[34px]">
+      <nav className="text-[13px] text-[var(--text-faint)]">
+        <Link href="/" className="hover:text-[var(--text)]">
+          {t.product.backToAll}
+        </Link>
+      </nav>
+
+      <div className="mt-5 grid gap-10 lg:grid-cols-[1fr_360px] lg:gap-12">
+        <div className="min-w-0">
+          <div className="flex items-start gap-4">
+            {entry.cover && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={entry.cover}
+                alt=""
+                className="h-16 w-16 shrink-0 rounded-[var(--radius-card)] object-cover"
+              />
+            )}
+            <h1 className="text-[24px] font-semibold leading-[1.25] tracking-[-0.015em] sm:text-[28px]">
               {entry.name}
             </h1>
+          </div>
 
-            <div className="mt-4 flex flex-wrap gap-2">
-              <Badge tone="ok">Instant delivery</Badge>
-              {entry.totalStock > 0 ? (
-                <Badge>In stock</Badge>
-              ) : (
-                <Badge tone="warn">Out of stock</Badge>
-              )}
-            </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Badge tone={entry.deliveryWay === "auto" ? "ok" : "warn"}>
+              {entry.deliveryWay === "auto"
+                ? t.product.autoDelivery
+                : t.product.manualDelivery}
+            </Badge>
+            <Badge tone={entry.totalStock > 0 ? "neutral" : "warn"}>
+              {entry.totalStock > 0
+                ? (entry.stockText ?? t.product.inStock)
+                : t.product.outOfStock}
+            </Badge>
+            {entry.tags.map((tag) => (
+              <Badge key={tag} tone="accent">
+                {tag}
+              </Badge>
+            ))}
+          </div>
 
-            <div className="mt-10 border-t border-[var(--line)] pt-8">
-              <h2 className="text-[13px] font-semibold uppercase tracking-[0.08em] text-[var(--text-faint)]">
-                How it works
+          {entry.deliveryWay === "manual" && (
+            <p className="mt-4 rounded-[var(--radius-card)] bg-[var(--warn-wash)] px-3 py-2.5 text-[13px] leading-relaxed text-[var(--warn)]">
+              {t.product.manualNote}
+            </p>
+          )}
+
+          {entry.description && (
+            <section className="mt-8 border-t border-[var(--line)] pt-6">
+              <h2 className="text-[13px] font-semibold text-[var(--text-faint)]">
+                {t.product.details}
               </h2>
-              <ol className="mt-4 grid gap-4 text-[14px] leading-relaxed text-[var(--text-muted)] sm:grid-cols-3">
-                <li>
-                  <span className="numeric mr-2 text-[var(--accent)]">1</span>
-                  Pick an option and enter your email.
-                </li>
-                <li>
-                  <span className="numeric mr-2 text-[var(--accent)]">2</span>
-                  Send the exact amount to the address shown.
-                </li>
-                <li>
-                  <span className="numeric mr-2 text-[var(--accent)]">3</span>
-                  Your code appears on the order page.
-                </li>
-              </ol>
-              <p className="mt-5 max-w-prose text-[13px] leading-relaxed text-[var(--text-faint)]">
-                Send the exact amount shown at checkout. The trailing decimals identify
-                your order, so a rounded amount cannot be matched automatically.
-              </p>
-            </div>
-          </div>
+              {/* 上游商品详情是富文本。它来自我们自己对接的供货商后台，
+                  不是用户输入，但仍然是外部内容 —— 若将来对接不受信任的上游，
+                  这里必须加白名单过滤。 */}
+              <div
+                className="prose-sm mt-3 text-[14px] leading-relaxed text-[var(--text-muted)] [&_a]:text-[var(--accent)] [&_img]:max-w-full"
+                dangerouslySetInnerHTML={{ __html: entry.description }}
+              />
+            </section>
+          )}
 
-          {/* 下单区。lg 以上吸顶，长页面滚动时购买入口始终可见。 */}
-          <div className="lg:sticky lg:top-24 lg:self-start">
-            <BuyForm
-              supplierId={entry.supplierId}
-              code={entry.code}
-              currency={currency}
-              variants={entry.variants}
-              chains={payableChains.map((chain) => ({
-                id: chain.id,
-                confirmations: chain.confirmations,
-              }))}
-              windowMinutes={config.payments.windowMinutes}
-            />
-          </div>
+          <section className="mt-8 border-t border-[var(--line)] pt-6">
+            <h2 className="text-[13px] font-semibold text-[var(--text-faint)]">
+              {t.product.howItWorks}
+            </h2>
+            <ol className="mt-3 grid gap-3 text-[14px] leading-relaxed text-[var(--text-muted)] sm:grid-cols-3">
+              <li>
+                <span className="numeric mr-2 text-[var(--accent)]">1</span>
+                {t.product.step1}
+              </li>
+              <li>
+                <span className="numeric mr-2 text-[var(--accent)]">2</span>
+                {t.product.step2}
+              </li>
+              <li>
+                <span className="numeric mr-2 text-[var(--accent)]">3</span>
+                {t.product.step3}
+              </li>
+            </ol>
+            <p className="mt-4 max-w-prose text-[13px] leading-relaxed text-[var(--text-faint)]">
+              {t.product.exactAmountNote}
+            </p>
+          </section>
         </div>
-      </Page>
-      <SiteFooter supportEmail={config.store.supportEmail ?? null} />
-    </>
+
+        <div className="lg:sticky lg:top-24 lg:self-start">
+          <BuyForm
+            supplierId={entry.supplierId}
+            code={entry.code}
+            currency={currency}
+            variants={entry.variants}
+            chains={payableChains.map((chain) => ({
+              id: chain.id,
+              confirmations: chain.confirmations,
+            }))}
+            labels={{
+              option: t.buy.option,
+              standard: t.buy.standard,
+              quantity: t.buy.quantity,
+              email: t.buy.email,
+              emailHint: t.buy.emailHint,
+              password: t.buy.password,
+              passwordHint: t.buy.passwordHint,
+              payWith: t.buy.payWith,
+              total: t.buy.total,
+              submit: t.buy.submit,
+              creating: t.buy.creating,
+              soldOut: t.buy.soldOut,
+              notConfigured: t.buy.notConfigured,
+              // 函数型文案必须在服务端求值 —— 函数不能跨 RSC 边界序列化。
+              window: t.buy.window(config.payments.windowMinutes),
+            }}
+          />
+        </div>
+      </div>
+    </Shell>
   );
 }

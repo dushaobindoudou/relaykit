@@ -25,44 +25,58 @@ type Status =
   | "needs_review"
   | "expired";
 
-/** 状态 → 给客户看的措辞。刻意不暴露内部状态名。 */
-const PRESENTATION: Record<Status, { label: string; tone: "ok" | "warn" | "danger" | "accent" | "neutral"; help: string }> = {
-  draft: { label: "Preparing", tone: "neutral", help: "Setting up your order." },
-  awaiting_payment: {
-    label: "Awaiting payment",
-    tone: "accent",
-    help: "Send the exact amount below. This page updates by itself.",
-  },
-  paid: {
-    label: "Payment received",
-    tone: "ok",
-    help: "Confirmed on-chain. Fetching your code now.",
-  },
-  procuring: {
-    label: "Getting your code",
-    tone: "ok",
-    help: "This usually takes a few seconds.",
-  },
-  fulfilled: { label: "Delivered", tone: "ok", help: "Your code is ready below." },
-  procurement_failed: {
-    label: "Could not be filled",
-    tone: "danger",
-    help: "The item became unavailable. Your payment will be refunded.",
-  },
-  refunded: { label: "Refunded", tone: "neutral", help: "This order was refunded." },
-  needs_review: {
-    label: "Being checked",
-    tone: "warn",
-    help: "Something needs a human look. We will contact you by email.",
-  },
-  expired: {
-    label: "Expired",
-    tone: "neutral",
-    help: "No payment arrived in time. Place a new order to try again.",
-  },
+/**
+ * 状态 → 视觉色调。
+ *
+ * 文案由服务端按语言传入（status/order 两组），这里只决定颜色 ——
+ * 颜色是与语言无关的，不该重复翻译。
+ */
+const TONE_BY_STATUS: Record<Status, "ok" | "warn" | "danger" | "accent" | "neutral"> = {
+  draft: "neutral",
+  awaiting_payment: "accent",
+  paid: "ok",
+  procuring: "ok",
+  fulfilled: "ok",
+  procurement_failed: "danger",
+  refunded: "neutral",
+  needs_review: "warn",
+  expired: "neutral",
 };
 
-function CopyField({ label, value }: { label: string; value: string }) {
+export type StatusCopy = Record<Status, { label: string; help: string }>;
+
+export interface OrderCopy {
+  orderNumber: string;
+  sendExactly: string;
+  left: string;
+  address: string;
+  amount: string;
+  copy: string;
+  copied: string;
+  yourCode: string;
+  item: string;
+  quantity: string;
+  total: string;
+  placed: string;
+  bookmark: string;
+  lookupLink: string;
+  bookmarkTail: string;
+  enterPassword: string;
+  openLookup: string;
+  exactDecimals: string;
+}
+
+function CopyField({
+  label,
+  value,
+  copyLabel,
+  copiedLabel,
+}: {
+  label: string;
+  value: string;
+  copyLabel: string;
+  copiedLabel: string;
+}) {
   const [copied, setCopied] = useState(false);
 
   const copy = useCallback(async () => {
@@ -85,7 +99,7 @@ function CopyField({ label, value }: { label: string; value: string }) {
           onClick={copy}
           className="text-[12px] text-[var(--accent)] hover:underline"
         >
-          {copied ? "Copied" : "Copy"}
+          {copied ? copiedLabel : copyLabel}
         </button>
       </div>
       <p className="numeric mt-1.5 break-all rounded-[var(--radius-card)] bg-[var(--bg-sunken)] px-3 py-2.5 text-[14px]">
@@ -119,6 +133,8 @@ function Countdown({ endsAt }: { endsAt: string }) {
 }
 
 export function OrderView(props: {
+  copy: OrderCopy;
+  statusCopy: StatusCopy;
   orderId: string;
   status: string;
   productName: string;
@@ -190,15 +206,17 @@ export function OrderView(props: {
     };
   }, [props.orderId, password, settled]);
 
-  const view = PRESENTATION[status] ?? PRESENTATION.draft;
+  const copy = props.copy;
+  const view = props.statusCopy[status] ?? props.statusCopy.draft;
+  const tone = TONE_BY_STATUS[status] ?? "neutral";
 
   return (
     <div className="mx-auto max-w-xl">
       <div className="flex items-center justify-between gap-4">
         <p className="numeric text-[13px] text-[var(--text-faint)]">
-          Order {props.orderId}
+          {copy.orderNumber} {props.orderId}
         </p>
-        <Badge tone={view.tone}>{view.label}</Badge>
+        <Badge tone={tone}>{view.label}</Badge>
       </div>
 
       <h1 className="mt-4 text-[24px] font-semibold leading-tight tracking-[-0.015em]">
@@ -210,11 +228,11 @@ export function OrderView(props: {
         <section className="mt-8 rounded-[var(--radius-card)] border border-[var(--accent)] bg-[var(--accent-wash)] p-5">
           <div className="flex items-baseline justify-between">
             <h2 className="text-[13px] font-semibold uppercase tracking-[0.08em] text-[var(--accent)]">
-              Send exactly
+              {copy.sendExactly}
             </h2>
             {props.payWindowEndsAt && (
               <span className="text-[13px] text-[var(--text-muted)]">
-                <Countdown endsAt={props.payWindowEndsAt} /> left
+                <Countdown endsAt={props.payWindowEndsAt} /> {copy.left}
               </span>
             )}
           </div>
@@ -226,13 +244,22 @@ export function OrderView(props: {
             </span>
           </p>
           <p className="mt-2 text-[12px] leading-relaxed text-[var(--text-muted)]">
-            The exact decimals identify your order. Sending a rounded amount means we
-            cannot match your payment automatically.
+            {copy.exactDecimals}
           </p>
 
           <div className="mt-5 grid gap-4">
-            <CopyField label={`Address (${props.chainId.toUpperCase()})`} value={props.payAddress} />
-            <CopyField label="Amount" value={props.payAmount} />
+            <CopyField
+              label={`${copy.address} (${props.chainId.toUpperCase()})`}
+              value={props.payAddress}
+              copyLabel={copy.copy}
+              copiedLabel={copy.copied}
+            />
+            <CopyField
+              label={copy.amount}
+              value={props.payAmount}
+              copyLabel={copy.copy}
+              copiedLabel={copy.copied}
+            />
           </div>
         </section>
       )}
@@ -240,7 +267,7 @@ export function OrderView(props: {
       {status === "fulfilled" && secret && (
         <section className="mt-8 rounded-[var(--radius-card)] border border-[var(--ok)] bg-[var(--ok-wash)] p-5">
           <h2 className="text-[13px] font-semibold uppercase tracking-[0.08em] text-[var(--ok)]">
-            Your code
+            {copy.yourCode}
           </h2>
           <pre className="numeric mt-3 whitespace-pre-wrap break-all rounded-[var(--radius-card)] bg-[var(--bg-raised)] p-4 text-[14px] leading-relaxed">
             {secret}
@@ -256,40 +283,39 @@ export function OrderView(props: {
       {status === "fulfilled" && !secret && (
         <section className="mt-8 rounded-[var(--radius-card)] border border-[var(--line)] p-5">
           <p className="text-[14px]">
-            Enter your order password to reveal the code.
+            {copy.enterPassword}
           </p>
           <a
             href="/lookup"
             className="mt-3 inline-block text-[14px] text-[var(--accent)] underline underline-offset-4"
           >
-            Open order lookup
+            {copy.openLookup}
           </a>
         </section>
       )}
 
       <dl className="mt-8 border-t border-[var(--line)] pt-4">
-        <Row label="Item">
+        <Row label={copy.item}>
           {props.productName}
           {props.race ? ` · ${props.race}` : ""}
         </Row>
-        <Row label="Quantity" mono>
+        <Row label={copy.quantity} mono>
           {props.quantity}
         </Row>
-        <Row label="Total" mono>
+        <Row label={copy.total} mono>
           {props.payAmount} {props.currency}
         </Row>
-        <Row label="Placed" mono>
+        <Row label={copy.placed} mono>
           {new Date(props.createdAt).toISOString().slice(0, 16).replace("T", " ")}
         </Row>
       </dl>
 
       <p className="mt-6 text-[12px] leading-relaxed text-[var(--text-faint)]">
-        Bookmark this page. You can also find this order again from the
-        {" "}
+        {copy.bookmark}{" "}
         <a href="/lookup" className="text-[var(--accent)] underline underline-offset-4">
-          order lookup
+          {copy.lookupLink}
         </a>{" "}
-        using your email and password.
+        {copy.bookmarkTail}
       </p>
     </div>
   );

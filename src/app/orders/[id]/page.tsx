@@ -12,8 +12,9 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 
-import { Page, SiteFooter } from "@/components/site-chrome";
+import { Shell } from "@/components/shell";
 import { OrderView } from "@/components/order-view";
+import { getI18n } from "@/i18n";
 import { getOrder } from "@/orders/service";
 import { buildContext, type Bindings } from "@/runtime/context";
 
@@ -37,11 +38,22 @@ export default async function OrderPage({
   const order = await getOrder(result.context, id);
   if (!order) notFound();
 
+  const { config } = result.context;
+  const { locale, t } = await getI18n(config.store.locale);
+
   return (
-    <>
-      <Page>
+    <Shell
+      storeName={config.store.name}
+      currency={config.store.currency}
+      categories={[]}
+      locale={locale}
+      t={t}
+      withSidebar={false}
+    >
         {/* 服务端只下发非敏感字段。卡密要凭口令另取，绝不在首屏 HTML 里。 */}
-        <OrderView
+      <OrderView
+          copy={t.order}
+          statusCopy={t.status}
           orderId={order.id}
           status={order.status}
           productName={order.productName}
@@ -53,9 +65,7 @@ export default async function OrderPage({
           chainId={order.chainId ?? ""}
           payWindowEndsAt={order.payWindowEndsAt ?? ""}
           createdAt={order.createdAt}
-        />
-      </Page>
-      <SiteFooter supportEmail={result.context.config.store.supportEmail ?? null} />
-    </>
+      />
+    </Shell>
   );
 }

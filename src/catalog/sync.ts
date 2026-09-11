@@ -8,11 +8,12 @@
  * 但快照只用于**展示**。下单前的库存与价格必须现拉 —— 见 orders/service。
  */
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 
 import type { RelayKitContext } from "@/runtime/context";
-import { products, type Product } from "@/db/schema";
+import { categories, products, type Category, type Product } from "@/db/schema";
 import { quotePrice, resolveMarkup, type FxSnapshot } from "@/pricing/engine";
+import type { SupplierProduct } from "@/supplier/types";
 
 export interface SyncReport {
   supplierId: string;
@@ -100,6 +101,7 @@ export async function syncSupplier(
           unsellableReason: "上游未返回该规格的拿货价（可能未开放对接）",
           stock: product.stock,
           syncedAt,
+          ...productMeta(product),
         });
         continue;
       }
@@ -139,14 +141,89 @@ export async function syncSupplier(
         unsellableReason: reason ?? null,
         stock: product.stock,
         syncedAt,
+        ...productMeta(product),
       });
     }
   }
 
+  await syncCategories(context, supplierId, adapter, syncedAt);
+
   return report;
 }
 
+/**
+ * 同步分类树，并回填每个分类下的可售商品数。
+ *
+ * 回填是必要的：上游的分类里可能一个可售商品都没有（全部因毛利不足被下架），
+ * 侧栏若照样展示，客户点进去看到的是空列表。
+ */
+async function syncCategories(
+  context: RelayKitContext,
+  supplierId: string,
+  adapter: { listCategories(): Promise<import("@/supplier/types").SupplierCategory[]> },
+  syncedAt: string,
+): Promise<void> {
+  let tree;
+  try {
+    tree = await adapter.listCategories();
+  } catch {
+    // 分类拉不到不影响商品 —— 店面会退化成不分类的单一列表。
+    return;
+  }
+
+  const counts = await context.db
+    .select({
+      categoryId: products.categoryId,
+      total: sql<number>`count(*)`,
+    })
+    .from(products)
+    .where(and(eq(products.supplierId, supplierId), eq(products.sellable, true)))
+    .groupBy(products.categoryId);
+
+  const countByCategory = new Map(
+    counts.map((row) => [row.categoryId ?? "", Number(row.total)]),
+  );
+
+  for (const category of tree) {
+    await context.db
+      .insert(categories)
+      .values({
+        supplierId,
+        externalId: category.id,
+        name: category.name,
+        icon: category.icon ?? null,
+        parentId: category.parentId ?? null,
+        sort: category.sort,
+        sellableCount: countByCategory.get(category.id) ?? 0,
+        syncedAt,
+      })
+      .onConflictDoUpdate({
+        target: [categories.supplierId, categories.externalId],
+        set: {
+          name: category.name,
+          icon: category.icon ?? null,
+          parentId: category.parentId ?? null,
+          sort: category.sort,
+          sellableCount: countByCategory.get(category.id) ?? 0,
+          syncedAt,
+        },
+      });
+  }
+}
+
 type ProductRow = typeof products.$inferInsert;
+
+/** 商品的展示性字段，与定价无关，各条 upsert 共用。 */
+function productMeta(product: SupplierProduct) {
+  return {
+    categoryId: product.categoryId ?? null,
+    cover: product.cover ?? null,
+    deliveryWay: product.deliveryWay,
+    stockText: product.stockText ?? null,
+    description: product.description ?? null,
+    tags: product.tags.length > 0 ? product.tags.join(",") : null,
+  };
+}
 
 async function upsert(context: RelayKitContext, row: ProductRow): Promise<void> {
   await context.db
@@ -158,6 +235,12 @@ async function upsert(context: RelayKitContext, row: ProductRow): Promise<void> 
         name: row.name,
         cost: row.cost,
         price: row.price ?? null,
+        categoryId: row.categoryId ?? null,
+        cover: row.cover ?? null,
+        deliveryWay: row.deliveryWay ?? "auto",
+        stockText: row.stockText ?? null,
+        description: row.description ?? null,
+        tags: row.tags ?? null,
         sellable: row.sellable ?? false,
         unsellableReason: row.unsellableReason ?? null,
         stock: row.stock ?? 0,
@@ -183,6 +266,19 @@ export async function syncAll(
 /** 店面列表：只取可售的。 */
 export async function listSellable(context: RelayKitContext) {
   return context.db.select().from(products).where(eq(products.sellable, true));
+}
+
+/**
+ * 侧栏用的分类列表。
+ *
+ * 只返回有可售商品的分类 —— 展示一个点进去是空的分类，比不展示更糟。
+ */
+export async function listCategories(context: RelayKitContext): Promise<Category[]> {
+  const rows = await context.db
+    .select()
+    .from(categories)
+    .where(sql`${categories.sellableCount} > 0`);
+  return rows.sort((a, b) => a.sort - b.sort || a.name.localeCompare(b.name));
 }
 
 export async function findProduct(
@@ -211,6 +307,12 @@ export interface CatalogEntry {
   supplierId: string;
   code: string;
   name: string;
+  categoryId: string | null;
+  cover: string | null;
+  deliveryWay: "auto" | "manual";
+  stockText: string | null;
+  description: string | null;
+  tags: string[];
   /** 该商品的全部可售规格，按价格升序。 */
   variants: {
     race: string;
@@ -239,6 +341,12 @@ export function groupByProduct(rows: Product[]): CatalogEntry[] {
         supplierId: row.supplierId,
         code: row.code,
         name: row.name,
+        categoryId: row.categoryId,
+        cover: row.cover,
+        deliveryWay: row.deliveryWay === "manual" ? "manual" : "auto",
+        stockText: row.stockText,
+        description: row.description,
+        tags: row.tags ? row.tags.split(",").filter(Boolean) : [],
         variants: [variant],
         fromPrice: row.price,
         totalStock: 0,
@@ -255,8 +363,37 @@ export function groupByProduct(rows: Product[]): CatalogEntry[] {
   return [...grouped.values()].sort((a, b) => Number(a.fromPrice) - Number(b.fromPrice));
 }
 
-export async function listCatalog(context: RelayKitContext): Promise<CatalogEntry[]> {
-  return groupByProduct(await listSellable(context));
+export interface CatalogFilter {
+  categoryId?: string;
+  /** 关键词，匹配商品名与规格名。 */
+  search?: string;
+}
+
+export async function listCatalog(
+  context: RelayKitContext,
+  filter: CatalogFilter = {},
+): Promise<CatalogEntry[]> {
+  const conditions = [eq(products.sellable, true)];
+  if (filter.categoryId) {
+    conditions.push(eq(products.categoryId, filter.categoryId));
+  }
+
+  const rows = await context.db
+    .select()
+    .from(products)
+    .where(and(...conditions));
+
+  const entries = groupByProduct(rows);
+  const keyword = filter.search?.trim().toLowerCase();
+  if (!keyword) return entries;
+
+  // 搜索在内存里做：商品总数是几十到几百量级，SQL 的 LIKE 在这个规模上
+  // 没有优势，反而会因为大小写与多字段匹配把查询写复杂。
+  return entries.filter(
+    (entry) =>
+      entry.name.toLowerCase().includes(keyword) ||
+      entry.variants.some((variant) => variant.race.toLowerCase().includes(keyword)),
+  );
 }
 
 /** 商品详情：同一 code 下的所有可售规格。 */

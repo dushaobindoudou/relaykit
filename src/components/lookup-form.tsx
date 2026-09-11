@@ -3,7 +3,18 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
-export function LookupForm() {
+export interface LookupLabels {
+  title: string;
+  intro: string;
+  orderNumber: string;
+  password: string;
+  submit: string;
+  checking: string;
+  notFound: string;
+  failed: string;
+}
+
+export function LookupForm({ labels }: { labels: LookupLabels }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [orderId, setOrderId] = useState("");
@@ -25,11 +36,11 @@ export function LookupForm() {
       );
       if (response.status === 404) {
         // 不区分「订单不存在」与「口令错误」，避免被用来枚举订单号。
-        setError("Order not found, or the password does not match.");
+        setError(labels.notFound);
         return;
       }
       if (!response.ok) {
-        setError("Something went wrong. Please try again.");
+        setError(labels.failed);
         return;
       }
       sessionStorage.setItem(`relaykit:order:${id}`, password);
@@ -40,7 +51,7 @@ export function LookupForm() {
   return (
     <form onSubmit={submit}>
       <label htmlFor="orderId" className="text-[13px] font-medium">
-        Order number
+        {labels.orderNumber}
       </label>
       <input
         id="orderId"
@@ -53,7 +64,7 @@ export function LookupForm() {
 
       <div className="mt-4">
         <label htmlFor="lookupPassword" className="text-[13px] font-medium">
-          Order password
+          {labels.password}
         </label>
         <input
           id="lookupPassword"
@@ -79,7 +90,7 @@ export function LookupForm() {
         disabled={pending}
         className="mt-5 inline-flex h-11 w-full items-center justify-center rounded-[var(--radius-card)] bg-[var(--accent)] text-[14px] font-medium text-[var(--accent-fg)] transition-[background-color,transform] hover:bg-[var(--accent-hover)] active:translate-y-px disabled:opacity-45"
       >
-        {pending ? "Checking…" : "Find order"}
+        {pending ? labels.checking : labels.submit}
       </button>
     </form>
   );

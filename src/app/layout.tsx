@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
 
-import { SiteHeader } from "@/components/site-chrome";
 import { getStoreMeta } from "@/runtime/store-meta";
 import "./globals.css";
 
@@ -30,10 +29,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
   return (
     <html lang={store.locale} className={`${GeistSans.variable} ${GeistMono.variable}`}>
-      <body className="min-h-[100dvh] antialiased">
-        <SiteHeader storeName={store.name} currency={store.currency} />
-        {children}
-      </body>
+      {/* 头部与侧栏由 Shell 负责 —— 不同页面需要的外框不同（商品页不要侧栏），
+          放在 layout 里就没法按页控制。 */}
+      <body className="antialiased">{children}</body>
     </html>
   );
 }

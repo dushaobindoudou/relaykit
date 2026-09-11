@@ -9,10 +9,36 @@
 /** 金额一律用十进制字符串传递，禁止在链路里退化成 number（0.1+0.2 会毁掉对账）。 */
 export type Decimal = string;
 
+/** 上游的商品分类。发卡站的商品是挂在分类树下的，丢掉分类就没法还原它的浏览结构。 */
+export interface SupplierCategory {
+  id: string;
+  name: string;
+  /** 分类图标 URL，上游通常会给。 */
+  icon?: string;
+  /** 父分类 id；顶级分类为空。上游支持两级。 */
+  parentId?: string;
+  sort: number;
+}
+
 export interface SupplierProduct {
   /** 上游的对接 CODE，是我们引用商品的唯一键。 */
   code: string;
   name: string;
+  /** 商品封面图 URL。 */
+  cover?: string;
+  /** 所属分类 id，对应 SupplierCategory.id。 */
+  categoryId?: string;
+  /**
+   * 交付方式：auto = 付款后自动发卡密；manual = 需要人工处理。
+   * 这个区别必须透传到店面 —— 客户看到"自动发货"和"人工发货"的心理预期完全不同。
+   */
+  deliveryWay: "auto" | "manual";
+  /** 上游给的库存文案（"充足"/"库存爆棚"）。上游隐藏具体数字时只有这个。 */
+  stockText?: string;
+  /** 商品详情富文本（HTML）。 */
+  description?: string;
+  /** 上游打的标签，例如"官方充值"、"畅销"。 */
+  tags: string[];
   /** 多规格商品的规格名列表；单规格商品为空数组。上游把它叫 race。 */
   races: string[];
   /**
@@ -104,6 +130,9 @@ export interface SupplierAdapter {
   connect(): Promise<{ shopName: string; balance: Decimal }>;
 
   listProducts(): Promise<SupplierProduct[]>;
+
+  /** 拉取分类树。没有分类概念的上游返回空数组，店面会退化成单一列表。 */
+  listCategories(): Promise<SupplierCategory[]>;
 
   /** 单品详情，含现算的 factory_price。商品页应当读它而不是列表缓存。 */
   getProduct(code: string): Promise<SupplierProduct>;

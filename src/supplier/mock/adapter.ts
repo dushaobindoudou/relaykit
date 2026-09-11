@@ -13,12 +13,14 @@ import type {
   PurchaseOutcome,
   PurchaseRequest,
   SupplierAdapter,
+  SupplierCategory,
   SupplierProduct,
 } from "@/supplier/types";
 
 export interface MockAdapterOptions {
   /** 演示商品。留空则用内置的一组。 */
   products?: SupplierProduct[];
+  categories?: SupplierCategory[];
   initialBalance?: Decimal;
   /**
    * 人为制造的失败率（0~1），用于演示与压测订单状态机的异常分支。
@@ -29,28 +31,89 @@ export interface MockAdapterOptions {
   random?: () => number;
 }
 
+/**
+ * 演示数据刻意做成真实发卡站的形状：分类树 + 每类若干商品 + 多规格。
+ * 演示环境的结构若比真上游简单，基于它做出来的 UI 接上真站就会散架。
+ */
+const DEMO_CATEGORIES: SupplierCategory[] = [
+  { id: "1", name: "AI 助手", sort: 1 },
+  { id: "2", name: "开发工具", sort: 2 },
+  { id: "3", name: "设计与创作", sort: 3 },
+];
+
 const DEMO_PRODUCTS: SupplierProduct[] = [
   {
-    code: "DEMO-GEMINI-1Y",
-    name: "Demo Pro Plan, 12 months",
-    races: ["Standard", "Regional"],
-    costByRace: { Standard: "30", Regional: "32" },
-    listPriceByRace: { Standard: "48", Regional: "50" },
+    code: "DEMO-ASSISTANT-PRO",
+    name: "Demo Assistant Pro",
+    categoryId: "1",
+    deliveryWay: "auto",
+    tags: ["官方充值", "畅销"],
+    stockText: "充足",
+    description:
+      "<p>演示商品，不对应任何真实服务。用于展示多规格选择与自动发货流程。</p>",
+    races: ["月卡", "季卡", "年卡"],
+    costByRace: { 月卡: "30", 季卡: "82", 年卡: "300" },
+    listPriceByRace: { 月卡: "48", 季卡: "128", 年卡: "460" },
     stock: 120,
     currencyCode: "CNY",
   },
   {
-    code: "DEMO-ASSISTANT-1M",
-    name: "Demo Assistant, 1 month",
+    code: "DEMO-ASSISTANT-TEAM",
+    name: "Demo Assistant Team Seat",
+    categoryId: "1",
+    deliveryWay: "manual",
+    tags: ["人工发货"],
+    stockText: "少量",
+    races: [],
+    costByRace: { "": "180" },
+    listPriceByRace: { "": "260" },
+    stock: 6,
+    currencyCode: "CNY",
+  },
+  {
+    code: "DEMO-CODE-ASSIST",
+    name: "Demo Code Assistant",
+    categoryId: "2",
+    deliveryWay: "auto",
+    tags: ["自动发货"],
+    stockText: "非常多",
+    races: ["个人版", "专业版"],
+    costByRace: { 个人版: "45", 专业版: "96" },
+    listPriceByRace: { 个人版: "68", 专业版: "148" },
+    stock: 88,
+    currencyCode: "CNY",
+  },
+  {
+    code: "DEMO-CLOUD-IDE",
+    name: "Demo Cloud IDE",
+    categoryId: "2",
+    deliveryWay: "auto",
+    tags: [],
     races: [],
     costByRace: { "": "16" },
-    listPriceByRace: { "": "20" },
+    listPriceByRace: { "": "26" },
     stock: 40,
+    currencyCode: "CNY",
+  },
+  {
+    code: "DEMO-IMAGE-SUITE",
+    name: "Demo Image Suite",
+    categoryId: "3",
+    deliveryWay: "auto",
+    tags: ["畅销"],
+    stockText: "充足",
+    races: ["标准", "高级"],
+    costByRace: { 标准: "22", 高级: "58" },
+    listPriceByRace: { 标准: "38", 高级: "88" },
+    stock: 64,
     currencyCode: "CNY",
   },
   {
     code: "DEMO-OUT-OF-STOCK",
     name: "Demo Item, sold out",
+    categoryId: "3",
+    deliveryWay: "auto",
+    tags: [],
     races: [],
     costByRace: { "": "10" },
     listPriceByRace: { "": "15" },
@@ -69,6 +132,7 @@ export class MockAdapter implements SupplierAdapter {
 
   readonly #failureRate: number;
   readonly #random: () => number;
+  readonly #categories: SupplierCategory[];
 
   constructor(options: MockAdapterOptions = {}) {
     this.#balance = Number(options.initialBalance ?? "5000");
@@ -77,6 +141,7 @@ export class MockAdapter implements SupplierAdapter {
     this.#products = new Map(
       (options.products ?? DEMO_PRODUCTS).map((item) => [item.code, { ...item }]),
     );
+    this.#categories = options.categories ?? DEMO_CATEGORIES;
   }
 
   async connect(): Promise<{ shopName: string; balance: Decimal }> {
@@ -85,6 +150,10 @@ export class MockAdapter implements SupplierAdapter {
 
   async listProducts(): Promise<SupplierProduct[]> {
     return [...this.#products.values()].map((item) => ({ ...item }));
+  }
+
+  async listCategories(): Promise<SupplierCategory[]> {
+    return this.#categories.map((item) => ({ ...item }));
   }
 
   async getProduct(code: string): Promise<SupplierProduct> {
