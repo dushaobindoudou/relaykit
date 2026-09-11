@@ -6,6 +6,7 @@
  */
 
 import { AcgFakaAdapter } from "@/supplier/acgfaka/client";
+import { AcgFakaPublicAdapter } from "@/supplier/acgfaka/public";
 import { MockAdapter } from "@/supplier/mock/adapter";
 import type { SupplierAdapter } from "@/supplier/types";
 import type { SupplierConfig } from "@/config/schema";
@@ -20,6 +21,14 @@ export function createSupplier(config: SupplierConfig): SupplierAdapter {
         appId: config.appId!,
         appKey: config.appKey!,
         timeoutMs: config.timeoutMs,
+      });
+
+    case "acgfaka-public":
+      // 只读目录：不需要凭据，但也下不了单。见 public.ts 的文件头注释。
+      return new AcgFakaPublicAdapter({
+        domain: config.domain!,
+        timeoutMs: config.timeoutMs,
+        costBasis: config.costBasis,
       });
 
     case "mock":

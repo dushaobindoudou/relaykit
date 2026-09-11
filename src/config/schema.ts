@@ -61,14 +61,33 @@ export const supplierSchema = z.object({
    * 驱动类型。mock 是内置的假上游，用于本地开发与演示 —— 它不碰真钱，
    * 所以可以放心用它跑通全流程再接真站。
    */
-  driver: z.enum(["acgfaka", "mock"]),
+  driver: z.enum(["acgfaka", "acgfaka-public", "mock"]),
   domain: z.string().url().optional(),
   appId: z.string().optional(),
   appKey: z.string().optional(),
   timeoutMs: z.number().int().min(1_000).max(120_000).default(20_000),
   /** 上游的结算币种。与 store.currency 不同时必须配置 pricing.fx 汇率。 */
   currency: currencyCode.default("CNY"),
+  /**
+   * 仅 acgfaka-public 驱动：成本口径。
+   *
+   * retail = 按上游零售价进货（还不是代理时的真实成本）
+   * agent  = 按上游代理价进货（**只有真的买了代理才能选**）
+   *
+   * 选 agent 却没有代理身份，定价引擎会按一个我们拿不到的低价算毛利，
+   * 卖一单亏一单。
+   */
+  costBasis: z.enum(["retail", "agent"]).default("retail"),
 }).superRefine((value, ctx) => {
+  // acgfaka-public 只需要 domain。
+  if (value.driver === "acgfaka-public" && !value.domain) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["domain"],
+      message: "driver 为 acgfaka-public 时必须配置 domain",
+    });
+    return;
+  }
   // acgfaka 驱动必须有三件套，缺一个都连不上。在 schema 层拦住，
   // 好过等到第一笔真实订单才报"商户ID不存在"。
   if (value.driver !== "acgfaka") return;
