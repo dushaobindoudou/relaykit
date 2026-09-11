@@ -18,6 +18,8 @@ export interface StoreMeta {
   locale: string;
   baseUrl: string | null;
   supportEmail: string | null;
+  /** 在线客服地址（Crisp/Tawk/自建）。挂在全站右下角浮窗，空则不渲染。 */
+  supportUrl: string | null;
 }
 
 const FALLBACK: StoreMeta = {
@@ -27,6 +29,7 @@ const FALLBACK: StoreMeta = {
   locale: "en",
   baseUrl: null,
   supportEmail: null,
+  supportUrl: null,
 };
 
 export async function getStoreMeta(): Promise<StoreMeta> {
@@ -44,6 +47,7 @@ export async function getStoreMeta(): Promise<StoreMeta> {
       locale: config.store.locale,
       baseUrl: config.store.baseUrl,
       supportEmail: config.store.supportEmail ?? null,
+      supportUrl: config.store.supportUrl ?? null,
     };
   } catch {
     // 配置无效时仍返回可用的兜底，让页面能渲染出错误说明。

@@ -24,6 +24,7 @@ const ALL_STATUSES: OrderStatus[] = [
   "draft",
   "awaiting_payment",
   "paid",
+  "reserved",
   "procuring",
   "fulfilled",
   "procurement_failed",
@@ -35,12 +36,14 @@ const ALL_STATUSES: OrderStatus[] = [
 const ALL_EVENTS: OrderEvent[] = [
   { type: "payment_requested" },
   { type: "payment_confirmed", txHash: "0xtx", amount: "5.17" },
+  { type: "reservation_opened" },
   { type: "payment_window_elapsed" },
   { type: "procurement_started" },
   { type: "procurement_succeeded", supplierTradeNo: "T1", secret: "CODE" },
   { type: "procurement_rejected", reason: "库存不足" },
   { type: "procurement_ambiguous", reason: "超时" },
   { type: "refund_completed" },
+  { type: "manual_delivery", secret: "MANUAL-CODE" },
   { type: "flagged_for_review", reason: "客户申诉" },
 ];
 
@@ -116,11 +119,105 @@ describe("核心不变式：不会重复向上游进货", () => {
     assert.equal(result.ok === false && result.benign, false);
   });
 
-  test("穷举：只有 paid 能进入 procuring", () => {
+  test("穷举：只有 paid / reserved 能进入 procuring", () => {
     for (const status of ALL_STATUSES) {
       const result = transition(status, { type: "procurement_started" });
       if (result.ok) {
-        assert.equal(status, "paid", `${status} 不应能进入 procuring`);
+        assert.ok(
+          status === "paid" || status === "reserved",
+          `${status} 不应能进入 procuring`,
+        );
+      }
+    }
+  });
+});
+
+describe("预订流程", () => {
+  // 与原站对齐：缺货商品可付款占位，补货后按付款顺序发货，随时可退余额。
+
+  function reservedOrder(): OrderStatus {
+    let status: OrderStatus = "draft";
+    for (const event of [
+      { type: "payment_requested" } as const,
+      { type: "reservation_opened" } as const,
+    ]) {
+      const result = transition(status, event);
+      assert.equal(result.ok, true, `${status} + ${event.type} 应当允许`);
+      if (result.ok) status = result.next;
+    }
+    return status;
+  }
+
+  test("预订单的完整生命周期：付款占位 → 补货进货 → 交付", () => {
+    let status = reservedOrder();
+    assert.equal(status, "reserved");
+
+    const started = transition(status, { type: "procurement_started" });
+    assert.equal(started.ok && started.next, "procuring");
+
+    const done = transition("procuring", {
+      type: "procurement_succeeded",
+      supplierTradeNo: "T",
+      secret: "S",
+    });
+    assert.equal(done.ok && done.next, "fulfilled");
+  });
+
+  test("预订单等待期间可退到余额（自助退款的路径）", () => {
+    const result = transition("reserved", { type: "refund_completed" });
+    assert.equal(result.ok && result.next, "refunded");
+  });
+
+  test("预订中的订单不因支付窗口超时而作废（已付款不变式同样适用）", () => {
+    const result = transition("reserved", { type: "payment_window_elapsed" });
+    assert.equal(result.ok, false);
+    assert.equal(result.ok === false && result.benign, true);
+  });
+
+  test("reservation_opened 只对等待付款的订单合法", () => {
+    for (const status of ALL_STATUSES) {
+      const result = transition(status, { type: "reservation_opened" });
+      if (result.ok) {
+        assert.equal(status, "awaiting_payment", `${status} 不应能进入预订`);
+      }
+    }
+  });
+
+  test("预订单上重复的到账确认是良性的，不回退状态", () => {
+    const result = transition("reserved", {
+      type: "payment_confirmed",
+      txHash: "0x",
+      amount: "1",
+    });
+    assert.equal(result.ok, false);
+    assert.equal(result.ok === false && result.benign, true);
+  });
+});
+
+describe("人工发货（manual 履约模式的闭环）", () => {
+  test("paid / reserved / procuring / needs_review 都能人工交付", () => {
+    for (const status of ["paid", "reserved", "procuring", "needs_review"] as const) {
+      const result = transition(status, { type: "manual_delivery", secret: "C" });
+      assert.equal(result.ok && result.next, "fulfilled", `${status} 应能人工交付`);
+    }
+  });
+
+  test("终态与等待付款的订单不能人工交付", () => {
+    for (const status of ["draft", "awaiting_payment", "fulfilled", "expired", "refunded"] as const) {
+      const result = transition(status, { type: "manual_delivery", secret: "C" });
+      assert.equal(result.ok, false, `${status} 不应能人工交付`);
+    }
+  });
+
+  test("人工交付不会绕过未收款状态", () => {
+    // 穷举核对：manual_delivery 的合法来源里没有任何未付款状态。
+    for (const status of ALL_STATUSES) {
+      const result = transition(status, { type: "manual_delivery", secret: "C" });
+      if (result.ok) {
+        assert.ok(
+          ["paid", "reserved", "procuring", "needs_review"].includes(status),
+          `${status} 不应能人工交付`,
+        );
       }
     }
   });

@@ -37,6 +37,17 @@ export interface SupplierProduct {
   stockText?: string;
   /** 商品详情富文本（HTML）。 */
   description?: string;
+  /**
+   * 上游显示的历史销量（order_sold）。是信任信号，不是我们自己的数据 ——
+   * 同步自哪个上游就该在 UI 上如实呈现，绝不与本地订单数混算。
+   */
+  salesCount?: number;
+  /**
+   * 缺货时是否接受预订（上游 reservation_enabled）。
+   * 原站用它减少缺货流失：客户先付款占位，补货后按付款顺序发货，
+   * 等不及的随时可退到余额。
+   */
+  reservable?: boolean;
   /** 上游打的标签，例如"官方充值"、"畅销"。 */
   tags: string[];
   /** 多规格商品的规格名列表；单规格商品为空数组。上游把它叫 race。 */

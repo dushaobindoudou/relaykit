@@ -17,6 +17,12 @@ export type OrderStatus =
   | "awaiting_payment"
   /** 链上已确认到账，等待向上游进货。 */
   | "paid"
+  /**
+   * 预订单已收到付款，排队等待补货。与 paid 的区别：库存还没有，
+   * 什么时候能进货取决于上游补货 —— 客户看到的是「预订中」而不是「取货中」。
+   * 客户随时可以把它退到余额（refund_completed）。
+   */
+  | "reserved"
   /** 正在向上游下单。**这个状态期间绝不允许重复发起进货**。 */
   | "procuring"
   /** 已拿到卡密并交付客户。终态。 */
@@ -49,6 +55,8 @@ export type OrderEvent =
   | { type: "payment_requested" }
   /** 链上确认到账。携带凭据以便落库对账。 */
   | { type: "payment_confirmed"; txHash: string; amount: string }
+  /** 预订单确认到账：进入预订队列而非立即进货。 */
+  | { type: "reservation_opened" }
   /** 支付窗口到期。 */
   | { type: "payment_window_elapsed" }
   /** 开始向上游进货。 */
@@ -61,6 +69,12 @@ export type OrderEvent =
   | { type: "procurement_ambiguous"; reason: string }
   /** 人工或自动完成退款。 */
   | { type: "refund_completed" }
+  /**
+   * 店主人工发货：把向上游手动买到的卡密录进系统。
+   * 用于 fulfillment.mode=manual 或预订单补货后的手动交付 ——
+   * 没有这条路径，人工模式的收款就永远无法闭环。
+   */
+  | { type: "manual_delivery"; secret: string }
   /** 人工把订单挑出来处理。 */
   | { type: "flagged_for_review"; reason: string };
 
@@ -124,7 +138,11 @@ export function transition(
       if (current === "awaiting_payment") return ok("paid");
       // 链上监听器天然会重复投递同一笔确认（重启、重扫、多节点），
       // 在已付款之后的任何状态收到它都属良性重复，绝不能因此回退状态。
-      if (current === "paid" || current === "procuring") {
+      if (
+        current === "paid" ||
+        current === "reserved" ||
+        current === "procuring"
+      ) {
         return reject("该订单已确认收款，忽略重复的到账事件", true);
       }
       if (current === "draft") {
@@ -134,18 +152,30 @@ export function transition(
       }
       return reject(`${current} 状态收到到账事件，需人工核对`);
 
+    case "reservation_opened":
+      // 预订单收到付款：占位进入队列，而不是立刻进货。
+      // 独立事件而不是复用 payment_confirmed —— 到账后的两个去向
+      // （马上进货 / 排队等货）语义完全不同，审计日志必须分得清。
+      if (current === "awaiting_payment") return ok("reserved");
+      if (current === "reserved") {
+        return reject("该预订单已确认收款，忽略重复的到账事件", true);
+      }
+      return reject(`${current} 状态不能进入预订队列`);
+
     case "payment_window_elapsed":
       if (current === "awaiting_payment") return ok("expired");
       // —— 核心不变式：已付款的订单不因超时作废 ——
       // 客户在窗口最后一秒付款、链上确认稍晚于定时器，是必然会发生的赛跑。
-      if (current === "paid" || current === "procuring") {
+      if (current === "paid" || current === "reserved" || current === "procuring") {
         return reject("订单已付款，超时不再作废", true);
       }
       if (current === "draft") return ok("expired");
       return reject(`${current} 状态不受支付超时影响`, true);
 
     case "procurement_started":
-      if (current === "paid") return ok("procuring");
+      // 预订单补货后开始进货：reserved 与 paid 在这里汇合，
+      // 之后的失败、不确定、交付路径完全一致。
+      if (current === "paid" || current === "reserved") return ok("procuring");
       if (current === "procuring") {
         // 并发的履约任务抢同一张单。拒绝是对的 —— 放行会导致向上游重复下单。
         return reject("该订单正在进货中，拒绝重复发起");
@@ -171,10 +201,25 @@ export function transition(
       return reject(`${current} 状态不应产生不确定的进货结果`);
 
     case "refund_completed":
-      if (current === "procurement_failed" || current === "needs_review") {
+      // 预订单退款：客户等不及，退到余额 —— reserved 也欠客户一笔可退的钱。
+      if (current === "procurement_failed" || current === "needs_review" || current === "reserved") {
         return ok("refunded");
       }
       return reject(`${current} 状态不能标记为已退款`);
+
+    case "manual_delivery":
+      // 人工发货：卡密已在店主手里（手动去上游买好了），录入即交付。
+      // paid 是 manual 模式的主路径；reserved 是预订单补货后的手动交付；
+      // procuring/needs_review 是自动流程中断后的手动收尾。
+      if (
+        current === "paid" ||
+        current === "reserved" ||
+        current === "procuring" ||
+        current === "needs_review"
+      ) {
+        return ok("fulfilled");
+      }
+      return reject(`${current} 状态不能人工标记发货`);
 
     case "flagged_for_review":
       if (current === "needs_review") return reject("订单已在人工队列中", true);

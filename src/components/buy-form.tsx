@@ -37,6 +37,8 @@ export interface BuyLabels {
   submit: string;
   creating: string;
   soldOut: string;
+  /** 预订模式的按钮文案。 */
+  reserveSubmit: string;
   notConfigured: string;
   window: string;
   couponLabel: string;
@@ -59,6 +61,7 @@ export function BuyForm({
   variants,
   chains,
   balance,
+  reservable = false,
   labels,
 }: {
   supplierId: string;
@@ -68,6 +71,8 @@ export function BuyForm({
   chains: { id: string }[];
   /** 登录用户的余额；未登录为 null。 */
   balance: string | null;
+  /** 缺货时可预订：按钮变为「预订购买」，提交与普通单一致（服务端标记）。 */
+  reservable?: boolean;
   labels: BuyLabels;
 }) {
   const router = useRouter();
@@ -92,7 +97,7 @@ export function BuyForm({
   const discount = coupon ? Number(coupon.discount) : 0;
   const total = Math.max(0, subtotal - discount).toFixed(2);
 
-  const soldOut = (selected?.stock ?? 0) < quantity;
+  const soldOut = (selected?.stock ?? 0) < quantity && !reservable;
   const noChain = chains.length === 0;
   const balanceEnough = balance !== null && Number(balance) >= Number(total);
   const canPay = payMethod === "balance" ? balanceEnough : !noChain;
@@ -406,7 +411,9 @@ export function BuyForm({
             ? labels.notConfigured
             : pending
               ? labels.creating
-              : labels.submit}
+              : reservable
+                ? labels.reserveSubmit
+                : labels.submit}
       </button>
 
       {payMethod === "chain" && (

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
 
+import { SupportWidget } from "@/components/support-widget";
 import { getStoreMeta } from "@/runtime/store-meta";
 import "./globals.css";
 
@@ -30,8 +31,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang={store.locale} className={`${GeistSans.variable} ${GeistMono.variable}`}>
       {/* 头部与侧栏由 Shell 负责 —— 不同页面需要的外框不同（商品页不要侧栏），
-          放在 layout 里就没法按页控制。 */}
-      <body className="antialiased">{children}</body>
+          放在 layout 里就没法按页控制。客服浮窗是全站级的，恰恰相反：
+          客户在任何页面卡住时都该一键够到人。 */}
+      <body className="antialiased">
+        {children}
+        {store.supportUrl && (
+          <SupportWidget url={store.supportUrl} locale={store.locale} />
+        )}
+      </body>
     </html>
   );
 }

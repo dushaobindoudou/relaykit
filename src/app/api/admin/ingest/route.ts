@@ -12,6 +12,7 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 
 import { syncSupplier, type PrefetchedCatalog } from "@/catalog/sync";
+import { resumeReservations } from "@/orders/service";
 import { buildContext, type Bindings } from "@/runtime/context";
 import type { SupplierCategory, SupplierProduct } from "@/supplier/types";
 
@@ -56,6 +57,11 @@ function normalizeProduct(raw: unknown): SupplierProduct | null {
     product.stockText = row.stockText;
   if (typeof row.description === "string" && row.description)
     product.description = row.description;
+  {
+    const sales = Number(row.salesCount);
+    if (Number.isFinite(sales) && sales >= 0) product.salesCount = Math.floor(sales);
+  }
+  if (row.reservable === true || row.reservable === 1) product.reservable = true;
 
   return product;
 }
@@ -128,5 +134,8 @@ export async function POST(request: Request): Promise<Response> {
   const prefetched: PrefetchedCatalog = { products, categories };
   const report = await syncSupplier(result.context, supplierId, new Date(), prefetched);
 
-  return Response.json({ ok: !report.error, report });
+  // 注入式同步的目录同样可能带来补货：auto 模式下顺手续履约预订单。
+  const reservationsResumed = await resumeReservations(result.context);
+
+  return Response.json({ ok: !report.error, reservationsResumed, report });
 }

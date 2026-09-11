@@ -57,9 +57,14 @@ function ProductCard({
             {t.product.autoDelivery}
           </span>
         )}
-        {soldOut && (
+        {soldOut && !entry.reservable && (
           <span className="absolute inset-x-0 bottom-0 bg-[var(--accent)]/85 py-1.5 text-center text-[12px] text-[var(--accent-fg)]">
             {t.product.outOfStock}
+          </span>
+        )}
+        {soldOut && entry.reservable && (
+          <span className="absolute inset-x-0 bottom-0 bg-[var(--pop)]/90 py-1.5 text-center text-[12px] text-[var(--accent-fg)]">
+            {t.product.reservable}
           </span>
         )}
       </div>
@@ -76,9 +81,14 @@ function ProductCard({
           {entry.fromPrice}
         </span>
         <span className="text-[11px] text-[var(--text-faint)]">{currency}</span>
+        {entry.salesCount !== null && (
+          <span className="numeric ml-auto text-[11px] text-[var(--text-faint)]">
+            {t.product.soldCount(entry.salesCount.toLocaleString("en-US"))}
+          </span>
+        )}
       </div>
 
-      {entry.stockText && (
+      {entry.stockText && !soldOut && (
         <p className="mt-1 text-[11px] text-[var(--text-faint)]">{entry.stockText}</p>
       )}
     </Link>
@@ -184,6 +194,7 @@ export default async function Home({
         storeName={config.store.name}
         currency={config.store.currency}
         supportEmail={config.store.supportEmail ?? null}
+        supportUrl={config.store.supportUrl ?? null}
         t={t}
       />
 

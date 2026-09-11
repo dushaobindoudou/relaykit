@@ -49,6 +49,7 @@ const DEMO_PRODUCTS: SupplierProduct[] = [
     deliveryWay: "auto",
     tags: ["官方充值", "畅销"],
     stockText: "充足",
+    salesCount: 8485,
     description:
       "<p>演示商品，不对应任何真实服务。用于展示多规格选择与自动发货流程。</p>",
     races: ["月卡", "季卡", "年卡"],
@@ -110,10 +111,12 @@ const DEMO_PRODUCTS: SupplierProduct[] = [
   },
   {
     code: "DEMO-OUT-OF-STOCK",
-    name: "Demo Item, sold out",
+    name: "Demo Item, backorder available",
     categoryId: "3",
     deliveryWay: "auto",
     tags: [],
+    salesCount: 312,
+    reservable: true,
     races: [],
     costByRace: { "": "10" },
     listPriceByRace: { "": "15" },

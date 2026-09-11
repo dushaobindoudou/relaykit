@@ -70,15 +70,26 @@ async function applyEvent(
     return { ok: false, status: current, reason: result.reason };
   }
 
-  await context.db.batch([
+  // 带原状态做条件更新：两个并发实例同时推进同一张单时，只有一个能
+  // 匹配到行。用 returning 的行数判断是否真的抢到 —— D1 的 update
+  // 匹配 0 行不报错，不检查就会让「输掉竞态的一方」也以为迁移成功了
+  // （退款入账两次的根源就在这里）。
+  const [updatedRows] = await context.db.batch([
     context.db
       .update(orders)
       .set({ ...patch, status: result.next, updatedAt: now })
-      // 带上原状态做条件更新：两个并发实例同时推进同一张单时，
-      // 只有一个能匹配到行，另一个更新 0 行 —— 这是应用层拿不到的防线。
-      .where(and(eq(orders.id, order.id), eq(orders.status, current))),
+      .where(and(eq(orders.id, order.id), eq(orders.status, current)))
+      .returning({ id: orders.id }),
     context.db.insert(orderEvents).values(logRow),
   ]);
+
+  if (updatedRows.length === 0) {
+    return {
+      ok: false,
+      status: current,
+      reason: "并发更新：该订单已被其他操作推进，本次迁移未生效",
+    };
+  }
 
   return { ok: true, status: result.next };
 }
@@ -139,17 +150,26 @@ export async function createOrder(
   if (input.quantity < 1 || input.quantity > 99) {
     return { ok: false, error: "购买数量不合法" };
   }
-  if (product.stock < input.quantity) {
+
+  // —— 预订判定 ——
+  // 库存不足时：可预订的商品允许下单（付款占位、补货发货、可退余额），
+  // 不可预订的明确拒绝。绝不能静默放行缺货单 —— 那会变成一笔必退款的订单。
+  const shortStock = product.stock < input.quantity;
+  if (shortStock && !product.reservable) {
     return { ok: false, error: `库存不足，当前仅剩 ${product.stock}` };
   }
+  const reservation = shortStock;
 
   // 下单前现拉一次库存：快照表是定时同步的，可能已经过期。
+  // 预订单不拦 —— 等的就是补货。
   const adapter = context.suppliers.get(input.supplierId);
-  if (adapter) {
+  if (adapter && !reservation) {
     try {
       const live = await adapter.getStock(input.code, input.race || undefined);
       if (live < input.quantity) {
-        return { ok: false, error: `库存不足，当前仅剩 ${live}` };
+        if (!product.reservable) {
+          return { ok: false, error: `库存不足，当前仅剩 ${live}` };
+        }
       }
     } catch {
       // 上游查库存失败不阻断下单 —— 真正的库存判定在进货那一步还会做一次，
@@ -205,6 +225,7 @@ export async function createOrder(
     payMethod,
     contactEmail: input.contactEmail,
     queryPasswordHash: await hashPassword(input.queryPassword),
+    reservation,
     createdAt: now.toISOString(),
     updatedAt: now.toISOString(),
   };
@@ -236,7 +257,8 @@ export async function createOrder(
     const row = {
       ...base,
       id: orderId,
-      status: "paid" as const,
+      // 预订单从这一刻起就在预订队列里，等补货；普通单直接进入待进货。
+      status: (reservation ? "reserved" : "paid") as "reserved" | "paid",
       requestNo: newRequestNo(),
       paidAt: now.toISOString(),
       payAmount: total,
@@ -245,11 +267,11 @@ export async function createOrder(
     await context.db.insert(orders).values(row);
     await context.db.insert(orderEvents).values({
       orderId,
-      eventType: "payment_confirmed",
+      eventType: reservation ? "reservation_opened" : "payment_confirmed",
       fromStatus: "draft",
-      toStatus: "paid",
+      toStatus: row.status,
       accepted: true,
-      detail: JSON.stringify({ payMethod: "balance", amount: total }),
+      detail: JSON.stringify({ payMethod: "balance", amount: total, reservation }),
       createdAt: now.toISOString(),
     });
 
@@ -539,11 +561,177 @@ export async function markPaid(
   txHash: string,
   amount: string,
 ): Promise<{ ok: boolean; status: OrderStatus }> {
+  // 预订单到账进入预订队列而非立即进货 —— 客户在订单页看到的是「预订中」。
+  // 事件分开，审计日志才能区分「马上进货」与「排队等货」这两种钱一样、
+  // 货完全不同的去向。
   const result = await applyEvent(
     context,
     order,
-    { type: "payment_confirmed", txHash, amount },
+    order.reservation
+      ? { type: "reservation_opened" }
+      : { type: "payment_confirmed", txHash, amount },
     { paidTxHash: txHash, paidAmount: amount, paidAt: new Date().toISOString() },
   );
   return { ok: result.ok, status: result.status };
+}
+
+/**
+ * 预订单退到余额。客户自助操作，条件从严：
+ * 只有 reserved 状态、登录、且是本人订单才允许 —— 余额是「记在账上」的钱，
+ * 退给谁必须唯一确定，匿名链上付款的退款走人工。
+ */
+export async function refundReservationToBalance(
+  context: RelayKitContext,
+  orderId: string,
+  user: User,
+): Promise<{ ok: boolean; error?: string }> {
+  const order = await getOrder(context, orderId);
+  if (!order) return { ok: false, error: "订单不存在" };
+  if (order.status !== "reserved") {
+    return { ok: false, error: "该订单当前不能自助退款" };
+  }
+  if (order.userId !== user.id) {
+    return { ok: false, error: "只有下单账号本人能退款到余额" };
+  }
+
+  // 先抢占迁移再入账。applyEvent 的条件更新保证并发下只有一个请求能把
+  // reserved → refunded —— 输掉竞态的一方在这里拿到失败，绝不会再入账。
+  // 反过来的顺序（先入账后迁移）在并发下会让余额加两次。
+  // 抢到后入账失败是罕见场景（DB 抖动）：状态已终态、事件日志可查，
+  // 人工补一笔流水即可 —— 比客户多得一笔钱好处理。
+  const claimed = await applyEvent(context, order, { type: "refund_completed" });
+  if (!claimed.ok) {
+    return { ok: false, error: claimed.reason ?? "退款失败，请勿重复提交" };
+  }
+
+  const credited = await ledger.postWithRetry(context, {
+    userId: user.id,
+    kind: "refund",
+    amount: order.payAmount ?? order.priceTotal,
+    orderId: order.id,
+    note: `预订单退款：${order.productName}`,
+  });
+  if (!credited.ok) {
+    // 迁移已成功但入账失败 —— 不回滚状态（回滚需要再迁移一次，引入更多
+    // 竞态），记录在事件流里等人工补账。返回成功让客户不重复点。
+    return { ok: true };
+  }
+  return { ok: true };
+}
+
+/**
+ * 人工发货：店主把手动买到的卡密录入系统（fulfillment.mode=manual 的主路径，
+ * 也是预订单补货后的手动交付）。带幂等 —— 同一订单重复录入会拒绝，
+ * 绝不静默覆盖已交付的卡密。
+ */
+export async function manualFulfill(
+  context: RelayKitContext,
+  orderId: string,
+  secret: string,
+  leaveMessage?: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const order = await getOrder(context, orderId);
+  if (!order) return { ok: false, error: "订单不存在" };
+  if (!secret.trim()) return { ok: false, error: "卡密不能为空" };
+
+  const result = await applyEvent(
+    context,
+    order,
+    { type: "manual_delivery", secret: secret.trim() },
+    {
+      secret: secret.trim(),
+      ...(leaveMessage ? { leaveMessage } : {}),
+      supplierTradeNo: order.supplierTradeNo,
+    },
+  );
+  if (!result.ok) return { ok: false, error: result.reason ?? "发货失败" };
+  return { ok: true };
+}
+
+/**
+ * 管理员退款：把已付款但发不了货的订单退到客户余额。
+ *
+ * 与自助退款（refundReservationToBalance）的差别在准入：管理员可以退
+ * procurement_failed / needs_review —— 那些是「我们欠客户一笔退款」的状态。
+ * 匿名订单没有余额可退，由调用方提示走线下。
+ */
+export async function applyAdminRefund(
+  context: RelayKitContext,
+  order: Order,
+): Promise<{ ok: boolean; error?: string }> {
+  if (
+    order.status !== "procurement_failed" &&
+    order.status !== "needs_review" &&
+    order.status !== "reserved"
+  ) {
+    return { ok: false, error: `状态 ${order.status} 不在可退款范围内` };
+  }
+  if (!order.userId) {
+    return { ok: false, error: "匿名订单无账号余额，请线下退款" };
+  }
+
+  // 与自助退款同样的顺序论证：先抢占迁移（条件更新挡并发），再入账。
+  const claimed = await applyEvent(context, order, { type: "refund_completed" });
+  if (!claimed.ok) {
+    return { ok: false, error: claimed.reason ?? "退款失败" };
+  }
+
+  const credited = await ledger.postWithRetry(context, {
+    userId: order.userId,
+    kind: "refund",
+    amount: order.payAmount ?? order.priceTotal,
+    orderId: order.id,
+    note: `管理员退款：${order.productName}`,
+  });
+  if (!credited.ok) {
+    // 迁移已生效但入账失败：事件日志可查，人工补账。绝不向客户暴露半途状态。
+    return { ok: true };
+  }
+  return { ok: true };
+}
+
+/**
+ * 预订单续履约：目录同步发现补货后，把排队中的预订单推回进货流程。
+ *
+ * 只在 fulfillment.mode=auto 时自动执行 —— manual 模式下店主应当通过
+ * admin 订单列表人工确认（他可能想自己先去上游买）。库存判断用同步后的
+ * 本地快照：这是「补了货」的信号，真正的库存校验在进货那一步还会做。
+ */
+export async function resumeReservations(
+  context: RelayKitContext,
+): Promise<number> {
+  if (context.config.fulfillment.mode !== "auto") return 0;
+
+  const pending = await context.db
+    .select()
+    .from(orders)
+    .where(eq(orders.status, "reserved"));
+
+  let resumed = 0;
+  for (const order of pending) {
+    const product = await findProduct(context, order.supplierId, order.productCode, order.race);
+    if (!product || product.stock < order.quantity) continue;
+
+    const result = await fulfillOrder(context, order);
+    if (result.ok) resumed += 1;
+  }
+  return resumed;
+}
+
+/** 管理视图：按状态列订单，人工发货/退款待办就从这里看。 */
+export async function listOrders(
+  context: RelayKitContext,
+  options: { status?: OrderStatus; limit?: number } = {},
+): Promise<Order[]> {
+  const rows = await context.db
+    .select()
+    .from(orders)
+    .where(
+      options.status
+        ? eq(orders.status, options.status)
+        : sql`${orders.status} in ('paid','reserved','needs_review','procurement_failed')`,
+    )
+    .orderBy(sql`${orders.createdAt} desc`)
+    .limit(options.limit ?? 100);
+  return rows;
 }

@@ -236,6 +236,18 @@ export class AcgFakaAdapter implements SupplierAdapter {
       typeof row.description === "string" && row.description !== ""
         ? row.description
         : undefined;
+    // 销量与预订开关：对接协议是否返回以实际响应为准，缺了就是 undefined，
+    // 只影响店面展示，不影响定价。
+    const salesCountRaw = Number(row.order_sold);
+    const salesCount =
+      Number.isFinite(salesCountRaw) && salesCountRaw >= 0
+        ? Math.floor(salesCountRaw)
+        : undefined;
+    const reservableFlag = row.reservation_enabled;
+    const reservable =
+      reservableFlag === 1 || reservableFlag === true || reservableFlag === "1"
+        ? true
+        : undefined;
 
     return {
       code: String(row.code ?? ""),
@@ -254,6 +266,8 @@ export class AcgFakaAdapter implements SupplierAdapter {
       ...(resolvedCategory ? { categoryId: resolvedCategory } : {}),
       ...(stockText ? { stockText } : {}),
       ...(description ? { description } : {}),
+      ...(salesCount !== undefined ? { salesCount } : {}),
+      ...(reservable ? { reservable } : {}),
     };
   }
 

@@ -87,17 +87,29 @@ export function createTestContext(options: TestContextOptions = {}): TestContext
    * 用 better-sqlite3 的真实事务实现：一组语句要么全成要么全不成，
    * 与 D1 batch 的原子性语义一致（其实更严格，因为是本地事务）。
    *
-   * 注意这里必须**同步**执行各条语句的 .run()：better-sqlite3 的事务是
-   * 同步的，在事务里 await 会让事务在语句真正执行前就提交掉。
-   * drizzle 的查询构造器有 .run()，正好是同步接口。
+   * 返回值按 D1 的口径：每个语句一个元素，带 returning 的语句是行数组。
+   * applyEvent 靠 returning 的行数判断并发抢单是否成功 —— 垫片若不返回
+   * 行，同一个函数在测试与生产里会走出不同的分支，测试就失去意义。
+   *
+   * 注意必须**同步**执行各条语句：better-sqlite3 的事务是同步的，在事务里
+   * await 会让事务在语句真正执行前就提交掉。drizzle 的 `.all()` 是同步
+   * 接口且总能用（无 returning 的语句返回空数组），正好满足两种口径。
    */
   const withBatch = Object.assign(db, {
-    batch: async (statements: { run: () => unknown }[]) => {
-      const tx = sqlite.transaction(() => {
-        for (const statement of statements) statement.run();
-      });
-      tx();
-      return statements.map(() => ({ success: true }));
+    batch: async (statements: { all: () => unknown; run: () => unknown }[]) => {
+      const tx = sqlite.transaction(() =>
+        statements.map((statement) => {
+          try {
+            return statement.all();
+          } catch {
+            // better-sqlite3 对「不返回数据的语句」的 .all() 抛错，
+            // 而 D1 对同语句返回空数组 —— 按生产口径归一。
+            statement.run();
+            return [];
+          }
+        }),
+      );
+      return tx();
     },
   });
 

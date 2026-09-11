@@ -12,6 +12,7 @@ import { notFound } from "next/navigation";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 
 import { getCatalogEntry } from "@/catalog/sync";
+import { sanitizeDescription } from "@/catalog/sanitize";
 import { isPlaceholderAddress } from "@/config/schema";
 import { BuyForm } from "@/components/buy-form";
 import {
@@ -81,6 +82,18 @@ export default async function ProductPage({ params }: Params) {
     (chain) => chain.enabled && !isPlaceholderAddress(chain.address),
   );
 
+  const soldOut = entry.totalStock <= 0;
+  const reservableHere = soldOut && entry.reservable;
+  /** 销量千分位：1 位数与 8 位数的可读性差在有没有逗号上。 */
+  const salesLabel = entry.salesCount !== null ? entry.salesCount.toLocaleString("en-US") : null;
+
+  // 富文本进页面前先清洗：结构保留、表现剥光（内联样式/font 标签），
+  // 脚本与危险协议一律丢弃。视觉由 .rte 主题接管 —— 上游的碎片样式
+  // 直接进来会把 Dawn 的排版打得稀碎。
+  const cleanDescription = entry.description
+    ? sanitizeDescription(entry.description)
+    : null;
+
   // Product + Offer 结构化数据。Google 用它在搜索结果里直接显示价格与库存，
   // 对点击率的影响远大于页面上任何视觉设计。
   const jsonLd = {
@@ -95,10 +108,11 @@ export default async function ProductPage({ params }: Params) {
       name: variant.race || undefined,
       price: variant.price,
       priceCurrency: currency,
-      availability:
-        variant.stock > 0
-          ? "https://schema.org/InStock"
-          : "https://schema.org/OutOfStock",
+      availability: soldOut
+        ? (entry.reservable
+            ? "https://schema.org/PreOrder"
+            : "https://schema.org/OutOfStock")
+        : "https://schema.org/InStock",
       url: `${config.store.baseUrl}/p/${entry.supplierId}/${encodeURIComponent(entry.code)}`,
     })),
   };
@@ -166,10 +180,15 @@ export default async function ProductPage({ params }: Params) {
                   : t.product.manualDelivery}
               </span>
               <span className="rounded-full bg-[var(--bg-sunken)] px-2.5 py-1 text-[var(--text-muted)]">
-                {entry.totalStock > 0
-                  ? (entry.stockText ?? t.product.inStock)
-                  : t.product.outOfStock}
+                {soldOut
+                  ? (reservableHere ? t.product.reservable : t.product.outOfStock)
+                  : (entry.stockText ?? t.product.inStock)}
               </span>
+              {salesLabel && (
+                <span className="numeric rounded-full bg-[var(--bg-sunken)] px-2.5 py-1 text-[var(--text-muted)]">
+                  {t.product.soldCount(salesLabel)}
+                </span>
+              )}
               {entry.tags.map((tag) => (
                 <span
                   key={tag}
@@ -186,6 +205,12 @@ export default async function ProductPage({ params }: Params) {
               </p>
             )}
 
+            {reservableHere && (
+              <p className="mt-4 rounded-[var(--radius-card)] bg-[var(--accent-wash,rgba(59,130,246,.08))] px-3 py-2.5 text-[13px] leading-relaxed text-[var(--text-muted)]">
+                {t.product.reservableNote}
+              </p>
+            )}
+
             <div className="mt-6">
               <BuyForm
                 supplierId={entry.supplierId}
@@ -194,6 +219,7 @@ export default async function ProductPage({ params }: Params) {
                 variants={entry.variants}
                 chains={payableChains.map((chain) => ({ id: chain.id }))}
                 balance={user ? user.balance : null}
+                reservable={reservableHere}
                 labels={{
                   option: t.buy.option,
                   standard: t.buy.standard,
@@ -207,6 +233,7 @@ export default async function ProductPage({ params }: Params) {
                   submit: t.buy.submit,
                   creating: t.buy.creating,
                   soldOut: t.buy.soldOut,
+                  reserveSubmit: t.buy.reserveSubmit,
                   notConfigured: t.buy.notConfigured,
                   // 函数型文案必须在服务端求值 —— 函数不能跨 RSC 边界序列化。
                   window: t.buy.window(config.payments.windowMinutes),
@@ -245,14 +272,14 @@ export default async function ProductPage({ params }: Params) {
           </div>
         </div>
 
-        {entry.description && (
+        {cleanDescription && (
           <section className="mt-14 border-t border-[var(--line)] pt-8">
             <p className="eyebrow">{t.product.details}</p>
-            {/* 上游商品详情是富文本。它来自我们自己对接的供货商后台，
-                不是终端用户输入；若将来对接不受信任的上游，这里必须加白名单过滤。 */}
+            {/* 上游富文本已经过 sanitizeDescription 白名单清洗：
+                结构保留、表现剥光、脚本与危险协议丢弃。 */}
             <div
               className="rte mt-3 max-w-3xl text-[14px] text-[var(--text-muted)]"
-              dangerouslySetInnerHTML={{ __html: entry.description }}
+              dangerouslySetInnerHTML={{ __html: cleanDescription }}
             />
           </section>
         )}
@@ -262,6 +289,7 @@ export default async function ProductPage({ params }: Params) {
         storeName={config.store.name}
         currency={currency}
         supportEmail={config.store.supportEmail ?? null}
+        supportUrl={config.store.supportUrl ?? null}
         t={t}
       />
     </>

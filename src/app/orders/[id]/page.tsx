@@ -63,6 +63,9 @@ export default async function OrderPage({
         chainId={order.chainId ?? ""}
         payWindowEndsAt={order.payWindowEndsAt ?? ""}
         createdAt={order.createdAt}
+        reservation={order.reservation}
+        /* 退到余额的资格：预订中 + 登录 + 本人的单。匿名预订走客服。 */
+        canRefundReservation={order.status === "reserved" && user !== null && order.userId === user.id}
       />
     </PageFrame>
   );

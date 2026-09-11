@@ -53,6 +53,10 @@ interface ListRow {
   delivery_way?: number;
   tags?: string;
   tags_list?: string[];
+  /** 上游显示的累计销量，例如 8485。 */
+  order_sold?: number | string;
+  /** 缺货时是否接受预订。 */
+  reservation_enabled?: number | boolean;
 }
 
 /**
@@ -113,6 +117,19 @@ function toDecimal(value: unknown): Decimal | undefined {
   if (typeof value === "string" && value.trim() !== "") return value.trim();
   if (typeof value === "number" && Number.isFinite(value)) return String(value);
   return undefined;
+}
+
+/** 上游把布尔序列化为 1/0（JSON 里是 number），也有驱动直接给 boolean。 */
+function toFlag(value: unknown): boolean | undefined {
+  if (typeof value === "boolean") return value;
+  if (value === 1 || value === "1") return true;
+  if (value === 0 || value === "0") return false;
+  return undefined;
+}
+
+function toCount(value: unknown): number | undefined {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && numeric >= 0 ? Math.floor(numeric) : undefined;
 }
 
 function parseTags(row: { tags?: string; tags_list?: string[] }): string[] {
@@ -208,6 +225,8 @@ export class AcgFakaPublicAdapter implements SupplierAdapter {
     let detailBudget = this.#maxDetailFetches;
 
     for (const row of rows) {
+      const salesCount = toCount(row.order_sold);
+      const reservable = toFlag(row.reservation_enabled);
       const base: SupplierProduct = {
         code: String(row.id),
         name: row.name,
@@ -225,6 +244,8 @@ export class AcgFakaPublicAdapter implements SupplierAdapter {
           ? { categoryId: String(row.category_id) }
           : {}),
         ...(typeof row.stock === "string" ? { stockText: row.stock } : {}),
+        ...(salesCount !== undefined ? { salesCount } : {}),
+        ...(reservable !== undefined ? { reservable } : {}),
       };
 
       if (detailBudget > 0) {
@@ -286,6 +307,9 @@ export class AcgFakaPublicAdapter implements SupplierAdapter {
       typeof item.description === "string" && item.description
         ? item.description
         : undefined;
+    const salesCount = toCount(item.order_sold);
+    const reservable = toFlag(item.reservation_enabled);
+    const isStock = item.is_stock === true || item.is_stock === undefined;
 
     return {
       code: String(item.id ?? code),
@@ -295,12 +319,14 @@ export class AcgFakaPublicAdapter implements SupplierAdapter {
       races,
       costByRace,
       listPriceByRace,
-      stock: item.is_stock === false ? 0 : Math.max(1, Number(item.stock_raw ?? 1) || 1),
+      stock: isStock ? Math.max(1, Number(item.stock_raw ?? 1) || 1) : 0,
       currencyCode: "CNY",
       ...(cover ? { cover } : {}),
       ...(item.category_id ? { categoryId: String(item.category_id) } : {}),
       ...(stockText ? { stockText } : {}),
       ...(description ? { description } : {}),
+      ...(salesCount !== undefined ? { salesCount } : {}),
+      ...(reservable !== undefined ? { reservable } : {}),
     };
   }
 

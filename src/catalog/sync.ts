@@ -140,15 +140,18 @@ export async function syncSupplier(
 
       // 缺货的商品即使定价成功也不上架 —— 让客户付了款才发现没货，
       // 产生的是一笔需要退款的订单和一次差评。
+      // 例外：上游明确开了预订（reservable）。此时保留上架，订单走预订
+      // 流程（付款占位、补货发货、随时退余额），与原站的做法一致。
       const outOfStock = product.stock <= 0;
-      const sellable = quote.sellable && !outOfStock;
-      const reason = outOfStock ? "上游缺货" : quote.rejection?.message;
+      const canReserve = product.reservable === true;
+      const sellable = quote.sellable && (!outOfStock || canReserve);
+      const reason = outOfStock && !canReserve ? "上游缺货" : quote.rejection?.message;
 
       if (sellable) {
         report.listed += 1;
       } else {
         report.withheld += 1;
-        const key = outOfStock ? "上游缺货" : (quote.rejection?.code ?? "unknown");
+        const key = outOfStock && !canReserve ? "上游缺货" : (quote.rejection?.code ?? "unknown");
         report.reasons[key] = (report.reasons[key] ?? 0) + 1;
       }
 
@@ -283,6 +286,8 @@ function productMeta(product: SupplierProduct) {
     deliveryWay: product.deliveryWay,
     stockText: product.stockText ?? null,
     description: product.description ?? null,
+    salesCount: product.salesCount ?? null,
+    reservable: product.reservable === true,
     tags: product.tags.length > 0 ? product.tags.join(",") : null,
   };
 }
@@ -302,6 +307,8 @@ async function upsert(context: RelayKitContext, row: ProductRow): Promise<void> 
         deliveryWay: row.deliveryWay ?? "auto",
         stockText: row.stockText ?? null,
         description: row.description ?? null,
+        salesCount: row.salesCount ?? null,
+        reservable: row.reservable ?? false,
         tags: row.tags ?? null,
         sellable: row.sellable ?? false,
         unsellableReason: row.unsellableReason ?? null,
@@ -374,6 +381,10 @@ export interface CatalogEntry {
   deliveryWay: "auto" | "manual";
   stockText: string | null;
   description: string | null;
+  /** 上游显示的累计销量；null 表示上游没给。 */
+  salesCount: number | null;
+  /** 缺货时是否可预订。 */
+  reservable: boolean;
   tags: string[];
   /** 该商品的全部可售规格，按价格升序。 */
   variants: {
@@ -408,6 +419,8 @@ export function groupByProduct(rows: Product[]): CatalogEntry[] {
         deliveryWay: row.deliveryWay === "manual" ? "manual" : "auto",
         stockText: row.stockText,
         description: row.description,
+        salesCount: row.salesCount,
+        reservable: row.reservable,
         tags: row.tags ? row.tags.split(",").filter(Boolean) : [],
         variants: [variant],
         fromPrice: row.price,

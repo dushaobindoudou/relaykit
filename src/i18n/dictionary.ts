@@ -35,6 +35,11 @@ export const en = {
     manualDelivery: "Manual delivery",
     manualNote:
       "This item is fulfilled by hand. Delivery is not instant; you will be contacted by email.",
+    /** 销量徽章。count 由服务端格式化后传入也行，这里保持函数形态以便复数处理。 */
+    soldCount: (count: string) => `${count} sold`,
+    reservable: "Backorder",
+    reservableNote:
+      "This item is temporarily out of stock. You can reserve it: pay now to hold your place in line, we deliver as soon as stock arrives, and you can refund to your balance at any time while waiting.",
     backToAll: "All products",
     howItWorks: "How it works",
     step1: "Pick an option and enter your email.",
@@ -57,6 +62,7 @@ export const en = {
     submit: "Continue to payment",
     creating: "Creating order…",
     soldOut: "Out of stock",
+    reserveSubmit: "Reserve — pay now, ships on restock",
     notConfigured: "Payment not configured",
     window: (minutes: number) => `You will have ${minutes} minutes to send payment.`,
   },
@@ -80,6 +86,11 @@ export const en = {
     openLookup: "Open order lookup",
     exactDecimals:
       "The exact decimals identify your order. Sending a rounded amount means we cannot match your payment automatically.",
+    /** 预订单的退款入口。仅登录且是本人订单时出现。 */
+    refundReservation: "Refund this reservation to my balance",
+    refunding: "Refunding…",
+    refundedToBalance: "Refunded to your account balance.",
+    refundFailed: "Could not refund automatically. Please contact support.",
   },
   status: {
     draft: { label: "Preparing", help: "Setting up your order." },
@@ -95,6 +106,10 @@ export const en = {
       help: "The item became unavailable. Your payment will be refunded.",
     },
     refunded: { label: "Refunded", help: "This order was refunded." },
+    reserved: {
+      label: "Reserved — waiting for restock",
+      help: "Your place in line is secured by your payment. We deliver the moment stock arrives; you can also refund to your balance at any time.",
+    },
     needs_review: {
       label: "Being checked",
       help: "Something needs a human look. We will contact you by email.",
@@ -127,6 +142,14 @@ export const en = {
     note: "Codes are delivered automatically after payment confirms on-chain.",
     shop: "Shop",
     support: "Support",
+    contact: "Contact support",
+  },
+  support: {
+    /** 右下角浮窗。 */
+    launcher: "Live support",
+    title: "Support",
+    close: "Close",
+    openInNewTab: "Open in a new tab",
   },
   account: {
     signIn: "Sign in",
@@ -204,6 +227,10 @@ export const zh: Dict = {
     autoDelivery: "自动发货",
     manualDelivery: "人工发货",
     manualNote: "该商品需人工处理，非即时发货，我们会通过邮件与你联系。",
+    soldCount: (count: string) => `已售 ${count}`,
+    reservable: "可预订",
+    reservableNote:
+      "该商品暂时缺货，支持预订：付款即锁定排队位置，补货后按付款顺序自动发货；等不及可随时退到账户余额。",
     backToAll: "全部商品",
     howItWorks: "购买流程",
     step1: "选择规格并填写邮箱",
@@ -226,6 +253,7 @@ export const zh: Dict = {
     submit: "去支付",
     creating: "正在创建订单…",
     soldOut: "已售罄",
+    reserveSubmit: "预订购买 — 付款占位，补货即发",
     notConfigured: "收款未配置",
     window: (minutes: number) => `创建后有 ${minutes} 分钟的付款时间。`,
   },
@@ -249,6 +277,10 @@ export const zh: Dict = {
     openLookup: "前往订单查询",
     exactDecimals:
       "末尾小数用于识别你的订单。转入取整后的金额会导致无法自动匹配到你。",
+    refundReservation: "将此预订单退到我的余额",
+    refunding: "退款中…",
+    refundedToBalance: "已退到你的账户余额。",
+    refundFailed: "自动退款失败，请联系客服。",
   },
   status: {
     draft: { label: "准备中", help: "正在创建订单。" },
@@ -264,6 +296,10 @@ export const zh: Dict = {
       help: "商品已不可用，款项将退还给你。",
     },
     refunded: { label: "已退款", help: "该订单已退款。" },
+    reserved: {
+      label: "预订中 — 等待补货",
+      help: "你的付款已锁定排队位置。补货后立即发货；等不及也可随时退到账户余额。",
+    },
     needs_review: {
       label: "人工核查中",
       help: "该订单需要人工确认，我们会通过邮件与你联系。",
@@ -295,6 +331,13 @@ export const zh: Dict = {
     note: "链上确认付款后自动发货。",
     shop: "购物",
     support: "支持",
+    contact: "联系客服",
+  },
+  support: {
+    launcher: "在线客服",
+    title: "客服",
+    close: "关闭",
+    openInNewTab: "在新窗口打开",
   },
   account: {
     signIn: "登录",

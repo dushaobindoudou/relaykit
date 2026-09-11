@@ -9,6 +9,7 @@ import { getCloudflareContext } from "@opennextjs/cloudflare";
 
 import { buildContext, type Bindings } from "@/runtime/context";
 import { syncAll } from "@/catalog/sync";
+import { resumeReservations } from "@/orders/service";
 
 export const dynamic = "force-dynamic";
 
@@ -33,5 +34,13 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const reports = await syncAll(result.context);
-  return Response.json({ ok: reports.every((r) => !r.error), reports });
+  // 同步后顺手续履约：补货到的预订单（auto 模式）推回进货流程。
+  // 放在 route 而不是 catalog/sync 内部 —— 那会让 catalog 依赖 orders，
+  // 依赖方向反了。
+  const reservationsResumed = await resumeReservations(result.context);
+  return Response.json({
+    ok: reports.every((r) => !r.error),
+    reservationsResumed,
+    reports,
+  });
 }

@@ -171,7 +171,8 @@ echoing any secret, so you can paste the output when asking for help.
 
 ## Project status
 
-Honest state of things — this is v0.1 and some of the pipeline is not built yet.
+Honest state of things — v0.1. The customer-facing pipeline is complete; the
+remaining gaps are all on the "full automation" side.
 
 | Area | Status |
 |---|---|
@@ -179,17 +180,25 @@ Honest state of things — this is v0.1 and some of the pipeline is not built ye
 | Mock supplier (zero-credential demo) | ✅ Done |
 | Configuration + validation | ✅ Done, 24 tests |
 | Pricing engine (FX, markup, margin guards) | ✅ Done, 33 tests |
-| Order state machine | ✅ Done, 18 tests |
-| Catalog sync + storefront listing | ✅ Done |
+| Order state machine (incl. reservations, manual fulfillment) | ✅ Done, 26 tests |
+| Catalog sync + storefront listing (sales badges, rich-text sanitizing) | ✅ Done |
 | D1 schema + migrations | ✅ Done |
 | Cloudflare deploy + Cron wiring | ✅ Done |
-| **On-chain payment watcher** | ⬜ Not started |
-| **Checkout + order pages** | ⬜ Not started |
-| **Admin console** | ⬜ Not started |
-| **End-to-end tests** | ⬜ Not started |
+| On-chain payment watcher (Polygon / BSC, multi-RPC fallback) | ✅ Done, 15 tests |
+| Checkout, order page, order lookup (EN/中文) | ✅ Done |
+| Accounts, balance ledger, top-ups, coupons | ✅ Done |
+| Backorders (pay to hold, self-serve refund to balance) | ✅ Done, 6 tests |
+| Admin API (order list / manual fulfillment / refunds) | ✅ Done |
+| WAF workaround (local sync script → injected ingest) | ✅ Done, see docs/upstream-access.md |
+| **Support chat widget** | ✅ Done (set `store.supportUrl`) |
+| **Admin console UI** | ⬜ Not started (use `GET/POST /api/admin/orders` meanwhile) |
+| **TRON (TRC20) payment watching** | ⬜ Not started (fails loudly, not silently) |
+| **Browser end-to-end tests** | ⬜ Not started |
 
-You can deploy it today and browse a priced catalog. You cannot yet take money
-through it.
+You can deploy it today, take real USDT payments (Polygon / BSC), confirm them
+on-chain, and fulfill automatically or by hand. What still stands between you
+and full automation is upstream credentials (app_id/app_key, see
+docs/upstream-access.md) — not storefront code.
 
 ## Design notes
 

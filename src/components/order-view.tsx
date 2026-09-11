@@ -19,6 +19,7 @@ type Status =
   | "draft"
   | "awaiting_payment"
   | "paid"
+  | "reserved"
   | "procuring"
   | "fulfilled"
   | "procurement_failed"
@@ -36,6 +37,7 @@ const TONE_BY_STATUS: Record<Status, "ok" | "warn" | "danger" | "accent" | "neut
   draft: "neutral",
   awaiting_payment: "accent",
   paid: "ok",
+  reserved: "accent",
   procuring: "ok",
   fulfilled: "ok",
   procurement_failed: "danger",
@@ -65,6 +67,10 @@ export interface OrderCopy {
   enterPassword: string;
   openLookup: string;
   exactDecimals: string;
+  refundReservation: string;
+  refunding: string;
+  refundedToBalance: string;
+  refundFailed: string;
 }
 
 export function OrderView(props: {
@@ -81,10 +87,15 @@ export function OrderView(props: {
   chainId: string;
   payWindowEndsAt: string;
   createdAt: string;
+  /** 预订单标记：影响等待补货提示与自助退款入口的展示。 */
+  reservation?: boolean;
+  /** 预订单可自助退到余额（登录 + 本人）。 */
+  canRefundReservation?: boolean;
 }) {
   const [status, setStatus] = useState(props.status as Status);
   const [secret, setSecret] = useState<string | null>(null);
   const [leaveMessage, setLeaveMessage] = useState<string | null>(null);
+  const [refundState, setRefundState] = useState<"idle" | "busy" | "done" | "error">("idle");
 
   // 口令：从 URL 取一次就换进 sessionStorage 并清掉地址栏，
   // 免得客户把带口令的链接截图发出去。
@@ -110,6 +121,27 @@ export function OrderView(props: {
     status === "expired" ||
     status === "refunded" ||
     status === "procurement_failed";
+
+  /** 预订单自助退款。服务端已做资格判定，这里只管交互与展示结果。 */
+  async function refundReservation() {
+    if (refundState === "busy") return;
+    setRefundState("busy");
+    try {
+      const response = await fetch(
+        `/api/orders/${props.orderId}/refund-to-balance`,
+        { method: "POST" },
+      );
+      const data = (await response.json()) as { ok: boolean };
+      if (data.ok) {
+        setRefundState("done");
+        setStatus("refunded");
+      } else {
+        setRefundState("error");
+      }
+    } catch {
+      setRefundState("error");
+    }
+  }
 
   useEffect(() => {
     if (settled || !password) return;
@@ -169,6 +201,31 @@ export function OrderView(props: {
             endsAt={props.payWindowEndsAt}
             copy={copy}
           />
+        </div>
+      )}
+
+      {status === "reserved" && (
+        <div className="mt-7">
+          {props.canRefundReservation && refundState !== "done" && (
+            <button
+              type="button"
+              onClick={refundReservation}
+              disabled={refundState === "busy"}
+              className="h-11 w-full rounded-[var(--radius-card)] border border-[var(--line-strong)] px-4 text-[13px] transition-colors hover:border-[var(--text)] disabled:opacity-50"
+            >
+              {refundState === "busy" ? copy.refunding : copy.refundReservation}
+            </button>
+          )}
+          {refundState === "done" && (
+            <p className="rounded-[var(--radius-card)] bg-[var(--ok-wash)] px-3 py-2.5 text-[13px] text-[var(--ok)]">
+              {copy.refundedToBalance}
+            </p>
+          )}
+          {refundState === "error" && (
+            <p role="alert" className="mt-2 text-[13px] text-[var(--danger)]">
+              {copy.refundFailed}
+            </p>
+          )}
         </div>
       )}
 

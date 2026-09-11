@@ -77,6 +77,11 @@ export const orders = sqliteTable(
     leaveMessage: text("leave_message"),
     /** 进入人工队列的原因，直接展示在后台待办里。 */
     reviewReason: text("review_reason"),
+    /**
+     * 预订单：创建时库存不足但商品可预订。付款后进入 reserved 排队，
+     * 补货后走正常进货；客户可随时退到余额。见 orders/state.ts。
+     */
+    reservation: integer("reservation", { mode: "boolean" }).notNull().default(false),
 
     // —— 优惠 ——
     couponCode: text("coupon_code"),
@@ -209,6 +214,11 @@ export const products = sqliteTable(
     stockText: text("stock_text"),
     /** 商品详情富文本。 */
     description: text("description"),
+    /**
+     * 上游显示的历史销量（order_sold）。是**上游的**累计销量，不是本店
+     * 订单数 —— 展示时如实标注，绝不与本地数据混算。为 null 时 UI 不显示。
+     */
+    salesCount: integer("sales_count"),
     /** 上游标签，逗号分隔。 */
     tags: text("tags"),
     /**

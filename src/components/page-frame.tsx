@@ -15,6 +15,7 @@ export function PageFrame({
   storeName,
   currency,
   supportEmail,
+  supportUrl,
   locale,
   t,
   user,
@@ -25,6 +26,8 @@ export function PageFrame({
   storeName: string;
   currency: string;
   supportEmail: string | null;
+  /** 在线客服地址（可选）。 */
+  supportUrl?: string | null;
   locale: Locale;
   t: Dict;
   user: { email: string; balance: string } | null;
@@ -47,6 +50,7 @@ export function PageFrame({
         storeName={storeName}
         currency={currency}
         supportEmail={supportEmail}
+        supportUrl={supportUrl ?? null}
         t={t}
       />
     </>

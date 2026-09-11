@@ -169,11 +169,14 @@ export function StoreFooter({
   storeName,
   currency,
   supportEmail,
+  supportUrl,
   t,
 }: {
   storeName: string;
   currency: string;
   supportEmail: string | null;
+  /** 在线客服地址；配置了就在页脚给出直接入口。 */
+  supportUrl?: string | null;
   t: Dict;
 }) {
   return (
@@ -210,6 +213,18 @@ export function StoreFooter({
         <div>
           <p className="eyebrow">{t.footer.support}</p>
           <ul className="mt-3 grid gap-2 text-[13px]">
+            {supportUrl && (
+              <li>
+                <a
+                  href={supportUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[var(--text-muted)] hover:text-[var(--text)]"
+                >
+                  {t.footer.contact}
+                </a>
+              </li>
+            )}
             {supportEmail && (
               <li>
                 <a
