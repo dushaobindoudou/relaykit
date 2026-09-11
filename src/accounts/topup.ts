@@ -10,6 +10,7 @@ import { and, eq, sql } from "drizzle-orm";
 
 import * as ledger from "@/accounts/balance";
 import { isPlaceholderAddress } from "@/config/schema";
+import { tagAmount } from "@/payments/tagging";
 import { topups, type Topup, type User } from "@/db/schema";
 import type { RelayKitContext } from "@/runtime/context";
 
@@ -53,8 +54,6 @@ export async function createTopup(
   const windowEnd = new Date(now.getTime() + config.payments.windowMinutes * 60_000);
 
   for (let attempt = 0; attempt < 5; attempt += 1) {
-    const tag = crypto.getRandomValues(new Uint32Array(1))[0]! % 10 ** decimals;
-    const step = 10 ** -decimals;
     const row = {
       id: newTopupId(),
       userId: user.id,
@@ -62,8 +61,8 @@ export async function createTopup(
       amount: value.toFixed(2),
       chainId: chain.id,
       payAddress: chain.address,
-      // 往上加而不是往下减：少收钱比多收钱难处理。
-      payAmount: (value + tag * step + attempt * step * 10 ** decimals).toFixed(decimals),
+      // 尾数只占价格精度之后的位，多收永远小于一分钱。见 payments/tagging。
+      payAmount: tagAmount(value.toFixed(2), decimals),
       payWindowEndsAt: windowEnd.toISOString(),
       createdAt: now.toISOString(),
       updatedAt: now.toISOString(),

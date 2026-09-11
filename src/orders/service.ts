@@ -16,6 +16,7 @@ import { transition, type OrderEvent, type OrderStatus } from "@/orders/state";
 import type { PurchaseRequest } from "@/supplier/types";
 import * as ledger from "@/accounts/balance";
 import * as couponService from "@/pricing/coupon";
+import { tagAmount } from "@/payments/tagging";
 import type { User } from "@/db/schema";
 
 /** 订单号：可读、可口述、不暴露总单量。 */
@@ -104,23 +105,6 @@ export interface CreateOrderInput {
 export type CreateOrderResult =
   | { ok: true; order: Order }
   | { ok: false; error: string };
-
-/**
- * 为订单分配一个在该链上唯一的收款金额。
- *
- * 同一个地址靠小数尾数区分订单，省掉为每单派生地址的密钥管理。
- * 唯一性由数据库的部分唯一索引兜底（只约束 awaiting_payment 的订单），
- * 这里只负责生成候选值并在冲突时换一个。
- */
-function taggedAmount(price: string, decimals: number, attempt: number): string {
-  const base = Number(price);
-  // 尾数空间 = 10^decimals。attempt 递增时换一个随机尾数而不是 +1，
-  // 避免高并发下大家挤在相邻值上反复冲突。
-  const tag = crypto.getRandomValues(new Uint32Array(1))[0]! % 10 ** decimals;
-  const step = 10 ** -decimals;
-  // 往上加而不是往下减：少收钱比多收钱难处理。
-  return (base + tag * step + attempt * step * 10 ** decimals).toFixed(decimals);
-}
 
 export async function createOrder(
   context: RelayKitContext,
@@ -286,7 +270,8 @@ export async function createOrder(
       requestNo: newRequestNo(),
       chainId: chain!.id,
       payAddress: chain!.address,
-      payAmount: taggedAmount(total, decimals, attempt),
+      // 每次循环重新取随机尾数；撞号只需再试一次，绝不在上次基础上递增。
+      payAmount: tagAmount(total, decimals),
       payWindowEndsAt: windowEnd.toISOString(),
     };
 

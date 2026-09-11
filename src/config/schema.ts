@@ -193,16 +193,20 @@ export const paymentsSchema = z.object({
   chains: z.array(chainSchema).min(1, "至少要启用一条收款链"),
   /**
    * 金额打标：同一个收款地址靠唯一的小数尾数区分订单，省掉为每单派生地址
-   * 的密钥管理。代价是并发订单数受尾数空间限制 —— decimals 给太小会导致
-   * 高峰期分配不出唯一金额。
+   * 的密钥管理。
+   *
+   * 尾数只占用**价格精度（两位小数）之后**的位，所以可用槽位是
+   * 10^(decimals − 2)，而多收的金额永远小于一分钱。
+   * 默认 6：一万个槽位，够绝大多数店用；USDT 在主流链上也正好是 6 位精度。
+   * 给小了会在高峰期分配不出唯一金额。
    */
   amountTagging: optionalSection(
     z
       .object({
         enabled: z.boolean().default(true),
-        decimals: z.number().int().min(2).max(6).default(4),
+        decimals: z.number().int().min(3).max(6).default(6),
       })
-      .default({ enabled: true, decimals: 4 }),
+      .default({ enabled: true, decimals: 6 }),
   ),
 });
 

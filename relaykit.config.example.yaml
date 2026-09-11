@@ -92,7 +92,7 @@ payments:
   # 同一地址靠唯一小数尾数区分订单，省掉为每单派生地址的密钥管理。
   amountTagging:
     enabled: true
-    decimals: 4
+    decimals: 6
 
 fulfillment:
   mode: auto            # auto = 收款确认后自动向上游下单；manual = 只记账
