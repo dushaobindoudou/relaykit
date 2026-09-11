@@ -1,0 +1,61 @@
+/**
+ * 订单页：付款指引 + 状态 + 卡密。
+ *
+ * 这是客户付完钱后盯着看的页面，所以它要回答的只有一个问题：
+ * **「我的东西到底什么时候到？」** 一切不服务于这个问题的内容都不该在这里。
+ *
+ * 服务端只渲染外壳与静态信息；状态轮询与卡密展示在客户端组件里，
+ * 因为需要口令校验后才拉取。
+ */
+
+import type { Metadata } from "next";
+import { notFound } from "next/navigation";
+import { getCloudflareContext } from "@opennextjs/cloudflare";
+
+import { Page, SiteFooter } from "@/components/site-chrome";
+import { OrderView } from "@/components/order-view";
+import { getOrder } from "@/orders/service";
+import { buildContext, type Bindings } from "@/runtime/context";
+
+export const dynamic = "force-dynamic";
+
+// 订单页永远不进搜索引擎 —— 它包含卡密。
+export const metadata: Metadata = {
+  robots: { index: false, follow: false, nocache: true },
+};
+
+export default async function OrderPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const { env } = getCloudflareContext();
+  const result = buildContext(env satisfies Bindings);
+  if (!result.ok || !result.context) notFound();
+
+  const order = await getOrder(result.context, id);
+  if (!order) notFound();
+
+  return (
+    <>
+      <Page>
+        {/* 服务端只下发非敏感字段。卡密要凭口令另取，绝不在首屏 HTML 里。 */}
+        <OrderView
+          orderId={order.id}
+          status={order.status}
+          productName={order.productName}
+          race={order.race}
+          quantity={order.quantity}
+          currency={order.currency}
+          payAmount={order.payAmount ?? ""}
+          payAddress={order.payAddress ?? ""}
+          chainId={order.chainId ?? ""}
+          payWindowEndsAt={order.payWindowEndsAt ?? ""}
+          createdAt={order.createdAt}
+        />
+      </Page>
+      <SiteFooter supportEmail={result.context.config.store.supportEmail ?? null} />
+    </>
+  );
+}

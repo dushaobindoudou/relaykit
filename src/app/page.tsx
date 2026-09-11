@@ -1,37 +1,30 @@
-/**
- * 店面首页。
- *
- * 服务端渲染：商品数据来自本地快照表，不在渲染路径上打上游 —— 页面速度
- * 不该取决于别人站点的响应时间。同时这也让页面可被搜索引擎正常抓取。
- */
-
+import Link from "next/link";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 
-import { listSellable } from "@/catalog/sync";
+import { listCatalog } from "@/catalog/sync";
 import { isPlaceholderAddress } from "@/config/schema";
+import { Badge, Notice, Page, SiteFooter } from "@/components/site-chrome";
 import { buildContext, type Bindings } from "@/runtime/context";
 
 export const dynamic = "force-dynamic";
 
-/** 配置没通过时的兜底页：直接把问题和修法写在页面上。 */
 function SetupNeeded({ error }: { error: string }) {
   return (
-    <main className="mx-auto max-w-2xl px-6 py-24">
-      <p className="text-sm font-medium text-amber-600">Setup required</p>
-      <h1 className="mt-2 text-3xl font-semibold tracking-tight text-neutral-900">
-        配置尚未就绪
-      </h1>
-      <pre className="mt-6 overflow-x-auto rounded-xl bg-neutral-900 p-5 text-sm leading-relaxed text-neutral-100">
+    <Page>
+      <h1 className="text-2xl font-semibold tracking-tight">Setup required</h1>
+      <p className="mt-2 text-[14px] text-[var(--text-muted)]">
+        店铺配置尚未就绪，客户暂时看不到商品。
+      </p>
+      <pre className="mt-6 overflow-x-auto rounded-[var(--radius-card)] bg-[var(--bg-sunken)] p-5 text-[13px] leading-relaxed">
         {error}
       </pre>
-      <p className="mt-6 text-sm text-neutral-600">
-        改好配置后重新部署即可。详细诊断见{" "}
-        <a className="underline underline-offset-4" href="/api/health">
+      <p className="mt-5 text-[13px] text-[var(--text-muted)]">
+        完整诊断见{" "}
+        <Link href="/api/health" className="text-[var(--accent)] underline underline-offset-4">
           /api/health
-        </a>
-        。
+        </Link>
       </p>
-    </main>
+    </Page>
   );
 }
 
@@ -44,77 +37,102 @@ export default async function Home() {
   }
 
   const { config } = result.context;
-  const items = await listSellable(result.context);
-  const notReady = config.payments.chains
+  const entries = await listCatalog(result.context);
+  const unpayable = config.payments.chains
     .filter((chain) => chain.enabled && isPlaceholderAddress(chain.address))
     .map((chain) => chain.id);
+  const canSell = config.payments.chains.some(
+    (chain) => chain.enabled && !isPlaceholderAddress(chain.address),
+  );
 
   return (
-    <main className="mx-auto max-w-5xl px-6 py-16">
-      <header>
-        <h1 className="text-4xl font-semibold tracking-tight text-neutral-900">
-          {config.store.name}
-        </h1>
-        <p className="mt-3 text-neutral-500">
-          Instant delivery · Paid in {config.store.currency}
-        </p>
-      </header>
-
-      {notReady.length > 0 && (
-        // 演示模式的显眼提示。宁可难看也要让人知道这站现在收不了钱 ——
-        // 静默地"看起来能用"是最坏的情况。
-        <div className="mt-8 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-          <strong className="font-semibold">演示模式：</strong>
-          {notReady.join("、")} 的收款地址尚未配置，下单会被拒绝。
-          执行 <code className="rounded bg-amber-100 px-1">wrangler secret put</code>{" "}
-          设置地址后重新部署。
-        </div>
-      )}
-
-      {items.length === 0 ? (
-        <div className="mt-12 rounded-xl border border-neutral-200 p-10 text-center">
-          <p className="text-neutral-900">暂无可售商品</p>
-          <p className="mt-2 text-sm text-neutral-500">
-            商品目录每 15 分钟自动同步一次；也可以手动触发{" "}
-            <code className="rounded bg-neutral-100 px-1">POST /api/admin/sync</code>。
-            若同步后仍为空，多半是毛利低于下限或上游未开放对接，见{" "}
-            <a className="underline underline-offset-4" href="/api/health">
-              /api/health
-            </a>
-            。
+    <>
+      <Page>
+        {/* 标题区刻意克制：客户是来买东西的，不是来读品牌宣言的。
+            主视觉就是商品清单本身。 */}
+        <div className="max-w-xl">
+          <h1 className="text-[32px] font-semibold leading-[1.15] tracking-[-0.02em] sm:text-[40px]">
+            {config.store.name}
+          </h1>
+          <p className="mt-3 text-[15px] leading-relaxed text-[var(--text-muted)]">
+            Pay in {config.store.currency}. Your code is delivered automatically once the
+            payment confirms on-chain.
           </p>
         </div>
-      ) : (
-        <ul className="mt-12 grid gap-4 sm:grid-cols-2">
-          {items.map((item) => (
-            <li
-              key={`${item.supplierId}:${item.code}:${item.race}`}
-              className="rounded-2xl border border-neutral-200 p-6 transition hover:border-neutral-300"
-            >
-              <h2 className="font-medium text-neutral-900">{item.name}</h2>
-              {item.race !== "" && (
-                <p className="mt-1 text-sm text-neutral-500">{item.race}</p>
-              )}
-              <p className="mt-4 text-2xl font-semibold tabular-nums text-neutral-900">
-                {item.price}
-                <span className="ml-1 text-sm font-normal text-neutral-500">
-                  {config.store.currency}
-                </span>
-              </p>
-            </li>
-          ))}
-        </ul>
-      )}
 
-      <footer className="mt-20 border-t border-neutral-200 pt-8 text-sm text-neutral-400">
-        Powered by{" "}
-        <a
-          className="underline underline-offset-4"
-          href="https://github.com/dushaobindoudou/relaykit"
-        >
-          RelayKit
-        </a>
-      </footer>
-    </main>
+        {!canSell && (
+          <div className="mt-8">
+            <Notice title="Demo mode">
+              {unpayable.join(", ")} 的收款地址尚未配置，下单会被拒绝。设置后重新部署即可开售。
+            </Notice>
+          </div>
+        )}
+
+        {entries.length === 0 ? (
+          <div className="mt-12 border-t border-[var(--line)] pt-12">
+            <p className="text-[15px]">No products listed yet.</p>
+            <p className="mt-2 max-w-lg text-[13px] leading-relaxed text-[var(--text-muted)]">
+              目录每 15 分钟自动同步。若同步后仍为空，多半是毛利低于下限、上游未开放对接，
+              或汇率已过期。逐条原因见{" "}
+              <Link href="/api/health" className="text-[var(--accent)] underline underline-offset-4">
+                /api/health
+              </Link>
+              。
+            </p>
+          </div>
+        ) : (
+          // 发丝线分隔的清单，而不是卡片网格。价格右对齐、等宽，方便竖着扫读比价 ——
+          // 这是买家在列表页真正做的事。
+          <ul className="mt-10 border-t border-[var(--line)]">
+            {entries.map((entry) => (
+              <li key={`${entry.supplierId}:${entry.code}`}>
+                <Link
+                  href={`/p/${entry.supplierId}/${encodeURIComponent(entry.code)}`}
+                  className="group flex items-center justify-between gap-6 border-b border-[var(--line)] py-5 transition-colors hover:bg-[var(--bg-sunken)]"
+                >
+                  <div className="min-w-0">
+                    <h2 className="truncate text-[15px] font-medium group-hover:text-[var(--accent)]">
+                      {entry.name}
+                    </h2>
+                    <p className="mt-1 text-[13px] text-[var(--text-faint)]">
+                      {entry.variants.length > 1
+                        ? `${entry.variants.length} options`
+                        : "Instant delivery"}
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="numeric text-[17px] font-semibold">
+                      {entry.variants.length > 1 ? (
+                        <span className="mr-1 font-sans text-[12px] font-normal text-[var(--text-faint)]">
+                          from
+                        </span>
+                      ) : null}
+                      {entry.fromPrice}
+                    </p>
+                    <p className="text-[12px] text-[var(--text-faint)]">
+                      {config.store.currency}
+                    </p>
+                  </div>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {entries.length > 0 && (
+          <div className="mt-10 flex flex-wrap gap-2">
+            <Badge tone="ok">Automatic delivery</Badge>
+            <Badge>No account needed</Badge>
+            <Badge>
+              {config.payments.chains
+                .filter((chain) => chain.enabled && !isPlaceholderAddress(chain.address))
+                .map((chain) => chain.id.toUpperCase())
+                .join(" / ") || "Payment not configured"}
+            </Badge>
+          </div>
+        )}
+      </Page>
+      <SiteFooter supportEmail={config.store.supportEmail ?? null} />
+    </>
   );
 }

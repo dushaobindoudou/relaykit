@@ -73,7 +73,7 @@ export async function GET(): Promise<Response> {
     ok: fxOk,
     detail: fxOk
       ? `汇率 ${ageHours.toFixed(1)} 小时前采集，在 ${maxAge} 小时窗口内`
-      : `汇率已 ${ageHours.toFixed(1)} 小时未更新，超过 ${maxAge} 小时上限 —— ` +
+      : `汇率已 ${ageHours.toFixed(1)} 小时未更新，超过 ${maxAge} 小时上限。` +
         `商品会全部停止上架。更新 pricing.fx.updatedAt 与汇率值后重新部署。`,
   });
 

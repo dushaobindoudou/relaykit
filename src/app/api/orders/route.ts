@@ -1,0 +1,62 @@
+/** 创建订单。店面下单表单唯一的写入口。 */
+
+import { getCloudflareContext } from "@opennextjs/cloudflare";
+
+import { createOrder } from "@/orders/service";
+import { buildContext, type Bindings } from "@/runtime/context";
+
+export const dynamic = "force-dynamic";
+
+interface Payload {
+  supplierId?: unknown;
+  code?: unknown;
+  race?: unknown;
+  quantity?: unknown;
+  chainId?: unknown;
+  contactEmail?: unknown;
+  queryPassword?: unknown;
+}
+
+const str = (value: unknown): string => (typeof value === "string" ? value.trim() : "");
+
+export async function POST(request: Request): Promise<Response> {
+  const { env } = getCloudflareContext();
+  const result = buildContext(env satisfies Bindings);
+  if (!result.ok || !result.context) {
+    return Response.json({ ok: false, error: "店铺配置异常，暂时无法下单" }, { status: 503 });
+  }
+
+  let body: Payload;
+  try {
+    body = (await request.json()) as Payload;
+  } catch {
+    return Response.json({ ok: false, error: "请求格式错误" }, { status: 400 });
+  }
+
+  const email = str(body.contactEmail);
+  const password = str(body.queryPassword);
+
+  // 校验在服务端重做一遍：客户端的 required/minLength 只是体验，不是防线。
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    return Response.json({ ok: false, error: "请填写有效的邮箱" }, { status: 400 });
+  }
+  if (password.length < 4) {
+    return Response.json({ ok: false, error: "订单口令至少 4 位" }, { status: 400 });
+  }
+
+  const created = await createOrder(result.context, {
+    supplierId: str(body.supplierId),
+    code: str(body.code),
+    race: str(body.race),
+    quantity: Number(body.quantity) || 1,
+    chainId: str(body.chainId),
+    contactEmail: email,
+    queryPassword: password,
+  });
+
+  if (!created.ok) {
+    return Response.json({ ok: false, error: created.error }, { status: 400 });
+  }
+
+  return Response.json({ ok: true, orderId: created.order.id });
+}

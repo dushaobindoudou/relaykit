@@ -32,7 +32,7 @@ export interface MockAdapterOptions {
 const DEMO_PRODUCTS: SupplierProduct[] = [
   {
     code: "DEMO-GEMINI-1Y",
-    name: "Demo Pro Plan — 12 months",
+    name: "Demo Pro Plan, 12 months",
     races: ["Standard", "Regional"],
     costByRace: { Standard: "30", Regional: "32" },
     listPriceByRace: { Standard: "48", Regional: "50" },
@@ -41,7 +41,7 @@ const DEMO_PRODUCTS: SupplierProduct[] = [
   },
   {
     code: "DEMO-ASSISTANT-1M",
-    name: "Demo Assistant — 1 month",
+    name: "Demo Assistant, 1 month",
     races: [],
     costByRace: { "": "16" },
     listPriceByRace: { "": "20" },
@@ -50,7 +50,7 @@ const DEMO_PRODUCTS: SupplierProduct[] = [
   },
   {
     code: "DEMO-OUT-OF-STOCK",
-    name: "Demo Item — sold out",
+    name: "Demo Item, sold out",
     races: [],
     costByRace: { "": "10" },
     listPriceByRace: { "": "15" },

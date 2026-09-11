@@ -11,7 +11,7 @@
 import { and, eq } from "drizzle-orm";
 
 import type { RelayKitContext } from "@/runtime/context";
-import { products } from "@/db/schema";
+import { products, type Product } from "@/db/schema";
 import { quotePrice, resolveMarkup, type FxSnapshot } from "@/pricing/engine";
 
 export interface SyncReport {
@@ -203,4 +203,77 @@ export async function findProduct(
     )
     .limit(1);
   return rows[0] ?? null;
+}
+
+// ———————————————————————— 店面读取 ————————————————————————
+
+export interface CatalogEntry {
+  supplierId: string;
+  code: string;
+  name: string;
+  /** 该商品的全部可售规格，按价格升序。 */
+  variants: {
+    race: string;
+    price: string;
+    stock: number;
+  }[];
+  /** 最低价，用于列表页展示「from X」。 */
+  fromPrice: string;
+  totalStock: number;
+}
+
+/** 把按规格存储的行按商品聚合 —— 列表与详情页都按「商品」而非「规格」呈现。 */
+export function groupByProduct(rows: Product[]): CatalogEntry[] {
+  const grouped = new Map<string, CatalogEntry>();
+
+  for (const row of rows) {
+    if (row.price === null) continue;
+    const key = `${row.supplierId}:${row.code}`;
+    const existing = grouped.get(key);
+    const variant = { race: row.race, price: row.price, stock: row.stock };
+
+    if (existing) {
+      existing.variants.push(variant);
+    } else {
+      grouped.set(key, {
+        supplierId: row.supplierId,
+        code: row.code,
+        name: row.name,
+        variants: [variant],
+        fromPrice: row.price,
+        totalStock: 0,
+      });
+    }
+  }
+
+  for (const entry of grouped.values()) {
+    entry.variants.sort((a, b) => Number(a.price) - Number(b.price));
+    entry.fromPrice = entry.variants[0]?.price ?? "0";
+    entry.totalStock = entry.variants.reduce((sum, v) => sum + v.stock, 0);
+  }
+
+  return [...grouped.values()].sort((a, b) => Number(a.fromPrice) - Number(b.fromPrice));
+}
+
+export async function listCatalog(context: RelayKitContext): Promise<CatalogEntry[]> {
+  return groupByProduct(await listSellable(context));
+}
+
+/** 商品详情：同一 code 下的所有可售规格。 */
+export async function getCatalogEntry(
+  context: RelayKitContext,
+  supplierId: string,
+  code: string,
+): Promise<CatalogEntry | null> {
+  const rows = await context.db
+    .select()
+    .from(products)
+    .where(
+      and(
+        eq(products.supplierId, supplierId),
+        eq(products.code, code),
+        eq(products.sellable, true),
+      ),
+    );
+  return groupByProduct(rows)[0] ?? null;
 }
