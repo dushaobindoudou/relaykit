@@ -1,0 +1,39 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "relaykit",
+  "main": "worker/entry.ts",
+  "compatibility_date": "2025-09-01",
+  // nodejs_compat 是必须的：上游签名走 node:crypto 的 MD5，
+  // 且 OpenNext 的 Next.js 运行时依赖多个 node: 内建模块。
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "observability": { "enabled": true },
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "relaykit",
+      // 部署前由 `wrangler d1 create relaykit` 生成后填入，
+      // 或用「Deploy to Cloudflare」按钮自动置备。
+      "database_id": "39b0ac19-e0e3-4f95-bdff-1013f41085de",
+      // drizzle-kit 把迁移生成在 ./drizzle，不是 wrangler 默认的 ./migrations
+      "migrations_dir": "drizzle"
+    }
+  ],
+
+  // 后台任务不能是常驻进程 —— Workers 没有常驻。
+  // 链上收款轮询与上游余额巡检都挂在 Cron 上，打到内部 API 路由。
+  "triggers": {
+    "crons": [
+      "* * * * *",
+      "*/15 * * * *"
+    ]
+  },
+
+  "vars": {
+    "RELAYKIT_ENV": "production"
+  }
+}

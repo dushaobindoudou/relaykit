@@ -229,3 +229,35 @@ describe("文件加载", () => {
     }
   });
 });
+
+describe("YAML 空段落容错", () => {
+  // 把一整段注释掉在 YAML 里解析出来是 null 而不是 undefined。
+  // 这是使用者最自然的操作之一，不能因此让配置校验失败。
+  test("alerts 段落为空（全是注释）时使用默认值而非报错", () => {
+    const raw = { ...validRaw(), alerts: null };
+    assert.doesNotThrow(() => loadConfig({ raw }));
+    assert.deepEqual(loadConfig({ raw }).alerts, {});
+  });
+
+  test("fulfillment 段落为空时落到安全默认值", () => {
+    const raw = { ...validRaw(), fulfillment: null };
+    const config = loadConfig({ raw });
+    assert.equal(config.fulfillment.mode, "auto");
+    assert.equal(config.fulfillment.haltSalesOnLowBalance, true);
+  });
+
+  test("pricing.overrides 与 rounding 为空同样容错", () => {
+    const raw = validRaw();
+    (raw.pricing as Record<string, unknown>).overrides = null;
+    (raw.pricing as Record<string, unknown>).rounding = null;
+    const config = loadConfig({ raw });
+    assert.deepEqual(config.pricing.overrides, []);
+    assert.equal(config.pricing.rounding.mode, "up");
+  });
+
+  test("payments.amountTagging 为空时启用默认打标", () => {
+    const raw = validRaw();
+    (raw.payments as Record<string, unknown>).amountTagging = null;
+    assert.equal(loadConfig({ raw }).payments.amountTagging.enabled, true);
+  });
+});

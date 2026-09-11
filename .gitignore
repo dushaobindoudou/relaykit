@@ -1,12 +1,16 @@
 node_modules
 .next
+.open-next
 .env
 .env.local
+.dev.vars
 dist
 *.db
 *.db-journal
 relaykit.config.yaml
+src/config/generated.ts
 test-results
 playwright-report
 .vitest
 tsconfig.tsbuildinfo
+.wrangler

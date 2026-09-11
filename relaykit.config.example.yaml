@@ -73,9 +73,12 @@ payments:
   chains:
     # ⚠️ address 是钱的去处，部署前请逐条核对。
     # 建议优先引导 Polygon / BSC：TRC20 的单笔网络费可能吃掉整笔薄利订单。
+    # 默认值 UNSET 让站点在未配置收款地址时**仍能启动**（方便先看演示），
+    # 但 /api/health 会把它标成未就绪，且下单接口会拒绝创建订单。
+    # 上线前必须 `wrangler secret put POLYGON_ADDRESS`。
     - id: polygon
       enabled: true
-      address: "${POLYGON_ADDRESS}"
+      address: "${POLYGON_ADDRESS:-UNSET}"
       confirmations: 30
     # - id: bsc
     #   enabled: true

@@ -22,6 +22,22 @@ const currencyCode = z
   .string()
   .regex(/^[A-Z0-9]{2,10}$/, "货币代码请用大写字母或数字，例如 USDT、CNY");
 
+/**
+ * 让一个可选的对象段落也接受 YAML 里的空值。
+ *
+ * 这不是吹毛求疵：下面这种写法在 YAML 里解析出来是 null 而不是 undefined，
+ *
+ *     alerts:
+ *       # webhookUrl: "..."
+ *
+ * 而 zod 的 .default() 只对 undefined 生效 —— 于是「把一整段注释掉」这个
+ * 再自然不过的操作会直接让配置校验失败，报一句 "Expected object, received null"，
+ * 使用者根本不知道自己做错了什么。凡是有默认值的对象段落都要过这一层。
+ */
+function optionalSection<T extends z.ZodTypeAny>(schema: T) {
+  return z.preprocess((value) => (value === null ? undefined : value), schema);
+}
+
 // ———————————————————————————————— 店铺 ————————————————————————————————
 
 export const storeSchema = z.object({
@@ -121,15 +137,18 @@ export const pricingSchema = z.object({
   maxDriftPercent: z.number().min(0).max(100).default(10),
   /** 汇率超过这个时长未更新就视为不可信，停止上架。 */
   maxStalenessHours: z.number().min(0).default(24),
-  rounding: z
-    .object({
-      /** up = 永远向上取整到 increment（保护毛利）；nearest = 四舍五入。 */
-      mode: z.enum(["up", "nearest"]).default("up"),
-      increment: positiveDecimalString.default("0.01"),
-    })
-    .default({ mode: "up", increment: "0.01" }),
+  rounding: optionalSection(
+    z
+      .object({
+        /** up = 永远向上取整到 increment（保护毛利）；nearest = 四舍五入。 */
+        mode: z.enum(["up", "nearest"]).default("up"),
+        increment: positiveDecimalString.default("0.01"),
+      })
+      .default({ mode: "up", increment: "0.01" }),
+  ),
   /** 针对单个商品覆盖默认加价。 */
-  overrides: z
+  overrides: optionalSection(
+    z
     .array(
       z.object({
         supplier: z.string(),
@@ -141,6 +160,7 @@ export const pricingSchema = z.object({
       }),
     )
     .default([]),
+  ),
 });
 
 // ———————————————————————————————— 收款 ————————————————————————————————
@@ -148,7 +168,13 @@ export const pricingSchema = z.object({
 export const chainSchema = z.object({
   id: z.enum(["polygon", "bsc", "tron", "ethereum"]),
   enabled: z.boolean().default(true),
-  /** 收款地址。**这是钱的去处，配错等于把收入送给别人**，部署前务必核对。 */
+  /**
+   * 收款地址。**这是钱的去处，配错等于把收入送给别人**，部署前务必核对。
+   *
+   * 允许填 UNSET：示例配置用它作为缺省值，好让人先把站点跑起来看看。
+   * 见 isPlaceholderAddress —— 健康检查会标红，下单接口会拒绝建单，
+   * 所以这个占位值不可能悄悄进入生产。
+   */
   address: z.string().min(1),
   /**
    * 入账所需确认数。给低了会有重组风险，给高了客户等得久。
@@ -170,12 +196,14 @@ export const paymentsSchema = z.object({
    * 的密钥管理。代价是并发订单数受尾数空间限制 —— decimals 给太小会导致
    * 高峰期分配不出唯一金额。
    */
-  amountTagging: z
-    .object({
-      enabled: z.boolean().default(true),
-      decimals: z.number().int().min(2).max(6).default(4),
-    })
-    .default({ enabled: true, decimals: 4 }),
+  amountTagging: optionalSection(
+    z
+      .object({
+        enabled: z.boolean().default(true),
+        decimals: z.number().int().min(2).max(6).default(4),
+      })
+      .default({ enabled: true, decimals: 4 }),
+  ),
 });
 
 // ——————————————————————————————— 履约与告警 ———————————————————————————————
@@ -192,15 +220,15 @@ export const fulfillmentSchema = z.object({
   haltSalesOnLowBalance: z.boolean().default(true),
 });
 
-export const alertsSchema = z
-  .object({
+export const alertsSchema = optionalSection(
+  z.object({
     /** 收到 JSON POST 的通用 webhook，可对接飞书/Slack/TG Bot。 */
     webhookUrl: z.string().url().optional(),
-    telegram: z
-      .object({ botToken: z.string(), chatId: z.string() })
-      .optional(),
-  })
-  .default({});
+    telegram: optionalSection(
+      z.object({ botToken: z.string(), chatId: z.string() }).optional(),
+    ),
+  }).default({}),
+);
 
 // ———————————————————————————————— 总配置 ————————————————————————————————
 
@@ -209,7 +237,7 @@ export const configSchema = z.object({
   suppliers: z.array(supplierSchema).min(1, "至少要配置一个上游供货商"),
   pricing: pricingSchema,
   payments: paymentsSchema,
-  fulfillment: fulfillmentSchema.default({}),
+  fulfillment: optionalSection(fulfillmentSchema.default({})),
   alerts: alertsSchema,
 });
 
@@ -219,3 +247,26 @@ export type MarkupConfig = z.infer<typeof markupSchema>;
 export type PricingConfig = z.infer<typeof pricingSchema>;
 export type ChainConfig = z.infer<typeof chainSchema>;
 export type PaymentsConfig = z.infer<typeof paymentsSchema>;
+
+/**
+ * 该地址是否只是占位符。
+ *
+ * 单独抽成函数而不是散在各处比较字符串：收款地址是整个系统里错一次
+ * 就直接损失收入的字段，判定逻辑必须只有一处。
+ */
+export function isPlaceholderAddress(address: string): boolean {
+  const normalized = address.trim().toUpperCase();
+  return (
+    normalized === "" ||
+    normalized === "UNSET" ||
+    normalized === "REPLACE_ME" ||
+    /^0X0{40}$/.test(normalized)
+  );
+}
+
+/** 已配置好、可以真正收款的链。 */
+export function payableChains(config: RelayKitConfig): ChainConfig[] {
+  return config.payments.chains.filter(
+    (chain) => chain.enabled && !isPlaceholderAddress(chain.address),
+  );
+}

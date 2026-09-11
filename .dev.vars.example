@@ -1,0 +1,27 @@
+# Cloudflare Workers 密钥（dotenv 格式）。
+#
+# 两个用途：
+#   1. 本地开发：复制为 .dev.vars，wrangler dev 会自动加载
+#   2. 「Deploy to Cloudflare」按钮会读取本文件，在部署向导里逐项提示填写
+#
+# 生产环境用 `wrangler secret put <NAME>` 注入，**不要**把真实值提交进仓库。
+
+# 管理端点鉴权（/api/admin/*）。未设置时管理端点一律拒绝服务。
+# 生成：openssl rand -hex 24
+ADMIN_TOKEN=""
+
+# —— 收款地址：钱的去处，部署前务必逐字核对 ——
+# 未设置时站点仍可启动（演示模式），但 /api/health 会标红且下单会被拒绝。
+POLYGON_ADDRESS=""
+BSC_ADDRESS=""
+TRON_ADDRESS=""
+
+# —— 上游凭据：relaykit.config.yaml 里 driver 为 acgfaka 时必填 ——
+# 向上游站长申请，并请其为要转售的商品开启「开放对接」。
+SUPPLIER_APP_ID=""
+SUPPLIER_APP_KEY=""
+
+# —— 告警（可选）——
+ALERT_WEBHOOK_URL=""
+TG_BOT_TOKEN=""
+TG_CHAT_ID=""
