@@ -46,7 +46,7 @@ interface Transfer {
   raw: bigint;
 }
 
-async function rpc<T>(
+async function rpcOnce<T>(
   url: string,
   method: string,
   params: unknown[],
@@ -58,18 +58,47 @@ async function rpc<T>(
     signal: AbortSignal.timeout(15_000),
   });
 
-  if (!response.ok) throw new Error(`RPC ${method} HTTP ${response.status}`);
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
   const payload = (await response.json()) as { result?: T; error?: { message: string } };
-  if (payload.error) throw new Error(`RPC ${method}: ${payload.error.message}`);
-  if (payload.result === undefined) throw new Error(`RPC ${method}: empty result`);
+  if (payload.error) throw new Error(payload.error.message);
+  if (payload.result === undefined) throw new Error("empty result");
 
   return payload.result;
 }
 
+/**
+ * 依次尝试多个 RPC 端点，返回第一个成功的结果。
+ *
+ * 公共节点会限流、封 IP 段、突然要求鉴权 —— polygon-rpc.com 就对
+ * Cloudflare 的出口返回 401。单点依赖意味着一个第三方的策略变更
+ * 就能让整站停止收款，而且表现为"静悄悄地收不到钱"。
+ */
+async function rpc<T>(
+  urls: string[],
+  method: string,
+  params: unknown[],
+): Promise<T> {
+  const failures: string[] = [];
+
+  for (const url of urls) {
+    try {
+      return await rpcOnce<T>(url, method, params);
+    } catch (error) {
+      failures.push(
+        `${new URL(url).host}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  // 全部失败才抛，并把每个端点的原因都带上 —— 否则排查时看不出是
+  // 限流、鉴权还是网络问题。
+  throw new Error(`RPC ${method} 全部端点失败 → ${failures.join("; ")}`);
+}
+
 /** 拉一段区块里打到我们地址的 USDT 转账。 */
 async function fetchTransfers(
-  rpcUrl: string,
+  rpcUrls: string[],
   token: string,
   toAddress: string,
   fromBlock: number,
@@ -77,7 +106,7 @@ async function fetchTransfers(
 ): Promise<Transfer[]> {
   const logs = await rpc<
     { transactionHash: string; logIndex: string; blockNumber: string; topics: string[]; data: string }[]
-  >(rpcUrl, "eth_getLogs", [
+  >(rpcUrls, "eth_getLogs", [
     {
       address: token,
       fromBlock: `0x${fromBlock.toString(16)}`,
@@ -176,11 +205,12 @@ export async function watchChain(
     return { ...report, error: "Tron 的收款监听尚未实现" };
   }
 
-  const rpcUrl = chain.rpcUrl ?? spec.rpcUrl;
+  // 用户自配的节点优先，公共节点作为回退。
+  const rpcUrls = chain.rpcUrl ? [chain.rpcUrl, ...spec.rpcUrls] : spec.rpcUrls;
   const token = chain.tokenAddress ?? spec.token;
 
   try {
-    const head = Number(await rpc<string>(rpcUrl, "eth_blockNumber", []));
+    const head = Number(await rpc<string>(rpcUrls, "eth_blockNumber", []));
     // 只认已经埋够确认数的区块。更浅的区块可能被重组，此时入账
     // 等于对一笔会消失的付款发了货。
     const safeHead = head - chain.confirmations;
@@ -212,7 +242,7 @@ export async function watchChain(
     for (let chunk = 0; chunk < maxChunks && cursor <= safeHead; chunk += 1) {
       const to = Math.min(cursor + spec.maxBlockRange - 1, safeHead);
       const transfers = await fetchTransfers(
-        rpcUrl,
+        rpcUrls,
         token,
         chain.address,
         cursor,

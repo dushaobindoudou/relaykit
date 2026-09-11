@@ -18,8 +18,16 @@ export interface ChainSpec {
   token: string;
   /** ⚠️ 见文件头注释。 */
   decimals: number;
-  /** 默认公共 RPC。生产环境强烈建议在配置里换成自备节点。 */
-  rpcUrl: string;
+  /**
+   * 默认公共 RPC 列表，按顺序尝试直到有一个能用。
+   *
+   * 为什么是列表而不是单个：公共节点会限流、会封 IP 段、会突然要求鉴权。
+   * polygon-rpc.com 就对 Cloudflare 的出口 IP 返回 401 —— 单点依赖意味着
+   * 一个第三方的策略变更就能让整站停止收款。
+   *
+   * 生产环境仍强烈建议在配置里填自备节点（chain.rpcUrl），它会被优先使用。
+   */
+  rpcUrls: string[];
   /** 单次 eth_getLogs 允许的最大区块跨度。公共节点普遍有限制。 */
   maxBlockRange: number;
   /** 该链平均出块时间（秒），用于估算首次扫描的起点。 */
@@ -31,7 +39,11 @@ export const CHAIN_SPECS: Record<string, ChainSpec> = {
     chainId: 137,
     token: "0xc2132D05D31c914a87C6611C10748AEb04B58e8F",
     decimals: 6,
-    rpcUrl: "https://polygon-rpc.com",
+    rpcUrls: [
+      "https://polygon-bor-rpc.publicnode.com",
+      "https://polygon.drpc.org",
+      "https://polygon-rpc.com",
+    ],
     maxBlockRange: 2_000,
     blockSeconds: 2,
   },
@@ -40,7 +52,11 @@ export const CHAIN_SPECS: Record<string, ChainSpec> = {
     // BSC-USD。注意这条链上是 18 位小数，与其它链不同。
     token: "0x55d398326f99059fF775485246999027B3197955",
     decimals: 18,
-    rpcUrl: "https://bsc-dataseed.binance.org",
+    rpcUrls: [
+      "https://bsc-rpc.publicnode.com",
+      "https://bsc.drpc.org",
+      "https://bsc-dataseed.binance.org",
+    ],
     maxBlockRange: 2_000,
     blockSeconds: 3,
   },
@@ -48,7 +64,11 @@ export const CHAIN_SPECS: Record<string, ChainSpec> = {
     chainId: 1,
     token: "0xdAC17F958D2ee523a2206206994597C13D831ec7",
     decimals: 6,
-    rpcUrl: "https://eth.llamarpc.com",
+    rpcUrls: [
+      "https://ethereum-rpc.publicnode.com",
+      "https://eth.drpc.org",
+      "https://eth.llamarpc.com",
+    ],
     maxBlockRange: 1_000,
     blockSeconds: 12,
   },
@@ -56,7 +76,7 @@ export const CHAIN_SPECS: Record<string, ChainSpec> = {
     chainId: null,
     token: "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
     decimals: 6,
-    rpcUrl: "https://api.trongrid.io",
+    rpcUrls: ["https://api.trongrid.io"],
     maxBlockRange: 0, // Tron 走 TronGrid 的事件接口，不按区块范围拉
     blockSeconds: 3,
   },
