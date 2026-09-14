@@ -16,7 +16,7 @@
     "typecheck": "tsc --noEmit",
     "db:push": "drizzle-kit push",
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
-    "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
+    "deploy": "node scripts/ensure-open-next-stub.mjs && opennextjs-cloudflare build && opennextjs-cloudflare deploy",
     "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
     "build:config": "node scripts/build-config.mjs",
     "typecheck:worker": "tsc -p tsconfig.worker.json --noEmit",
