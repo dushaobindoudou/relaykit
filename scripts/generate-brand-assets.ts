@@ -57,7 +57,7 @@ async function generateOgCard(): Promise<void> {
                     fill: #1C5F45; }
       </style>
       ${markSvg(96, 140, 64)}
-      <text class="wordmark" x="96" y="330">AI Access</text>
+      <text class="wordmark" x="96" y="330">DAICHONG</text>
       <text class="tagline" x="96" y="396">Premium AI accounts, delivered in minutes.</text>
       <text class="meta" x="96" y="500">USDT · POLYGON · BSC</text>
     </svg>`);

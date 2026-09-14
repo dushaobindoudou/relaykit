@@ -138,6 +138,10 @@ export default async function Home({
       ]
     : undefined;
 
+  // 介绍区只在「干净的落地页」出现 —— 带分类/搜索意图的访客要的是货架，
+  // 不是品牌陈述；这也是给 SEO 首页留出独一无二的介绍性内容。
+  const showHero = !activeCategory && !search;
+
   const entries = await listCatalog(context, {
     ...(categoryFilter ? { categoryId: categoryFilter } : {}),
     ...(search ? { search } : {}),
@@ -164,6 +168,45 @@ export default async function Home({
       </div>
 
       <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
+        {showHero && (
+          <section className="mb-10 border-b border-[var(--line)] pb-9">
+            <p className="eyebrow">{config.store.name}</p>
+            <h2 className="mt-3 max-w-2xl text-[26px] font-semibold leading-[1.15] tracking-[-0.02em] sm:text-[34px]">
+              {t.home.heroTitle}
+            </h2>
+            <p className="mt-3 max-w-xl text-[14px] leading-relaxed text-[var(--text-muted)]">
+              {t.home.heroSub}
+            </p>
+            <ul className="mt-5 flex flex-wrap gap-x-6 gap-y-2">
+              {[t.home.heroPoint1, t.home.heroPoint2, t.home.heroPoint3].map((point) => (
+                <li key={point} className="flex items-center gap-2 text-[13px] text-[var(--text-muted)]">
+                  <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-[var(--pop)]" />
+                  {point}
+                </li>
+              ))}
+            </ul>
+
+            <div className="mt-8 grid gap-6 sm:grid-cols-3">
+              {[
+                { n: "01", text: t.home.howStep1 },
+                { n: "02", text: t.home.howStep2 },
+                { n: "03", text: t.home.howStep3 },
+              ].map((step) => (
+                <div key={step.n} className="flex gap-3">
+                  <span className="numeric text-[13px] font-semibold text-[var(--pop)]">{step.n}</span>
+                  <p className="text-[13px] leading-relaxed text-[var(--text-muted)]">{step.text}</p>
+                </div>
+              ))}
+            </div>
+            <p className="mt-6 text-[13px]">
+              <span className="text-[var(--text-muted)]">{t.home.howTitle} · </span>
+              <Link href="/help" className="text-[var(--pop)] underline underline-offset-4">
+                {t.home.howCta}
+              </Link>
+            </p>
+          </section>
+        )}
+
         {!canSell && (
           <div className="mb-8 rounded-[var(--radius-card)] border border-[var(--warn)]/25 bg-[var(--warn-wash)] px-4 py-3 text-[13px] leading-relaxed text-[var(--warn)]">
             <strong className="font-semibold">{t.setup.demoMode}</strong>{" "}
@@ -214,6 +257,30 @@ export default async function Home({
           </div>
         </div>
       </main>
+
+      {showHero && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@graph": [
+                {
+                  "@type": "WebSite",
+                  name: config.store.name,
+                  url: config.store.baseUrl,
+                },
+                {
+                  "@type": "Organization",
+                  name: config.store.name,
+                  url: config.store.baseUrl,
+                  logo: config.store.baseUrl ? `${config.store.baseUrl}/icon.svg` : undefined,
+                },
+              ],
+            }),
+          }}
+        />
+      )}
 
       <StoreFooter
         storeName={config.store.name}
