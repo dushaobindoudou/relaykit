@@ -11,9 +11,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 
-import { getCatalogEntry } from "@/catalog/sync";
+import { findProduct, fxFromConfig, getCatalogEntry } from "@/catalog/sync";
 import { sanitizeDescription } from "@/catalog/sanitize";
 import { isPlaceholderAddress } from "@/config/schema";
+import { manualUnitPrice } from "@/pricing/engine";
 import { BuyForm } from "@/components/buy-form";
 import {
   AnnouncementBar,
@@ -81,6 +82,47 @@ export default async function ProductPage({ params }: Params) {
   const payableChains = config.payments.chains.filter(
     (chain) => chain.enabled && !isPlaceholderAddress(chain.address),
   );
+
+  // 手动收款渠道（支付宝/微信转账）：单价按成本口径重算（如 30%），
+  // 与 createOrder 的算法同源 —— 页面展示价必须等于下单结算价。
+  const manualConfig =
+    config.payments.manual?.enabled && config.payments.manual.channels.length > 0
+      ? config.payments.manual
+      : null;
+  const manualChannels = manualConfig?.channels.map((channel) => ({
+    id: channel.id,
+    label: channel.label,
+  })) ?? null;
+  const variantsWithManual = manualConfig
+    ? await Promise.all(
+        entry.variants.map(async (variant) => {
+          const product = await findProduct(context, entry.supplierId, entry.code, variant.race);
+          if (!product || product.price === null) return variant;
+          try {
+            return {
+              ...variant,
+              manualPrice: manualUnitPrice({
+                cost: product.cost,
+                baseRetailPrice: product.price,
+                tierUnitPrice: variant.price,
+                rates: fxFromConfig(context).rates,
+                fromCurrency:
+                  config.suppliers.find((item) => item.id === entry.supplierId)?.currency ?? "CNY",
+                toCurrency: config.store.currency,
+                markupPercent: manualConfig.markupPercent,
+                rounding: config.pricing.rounding,
+              }),
+            };
+          } catch {
+            // 汇率缺失等定价异常时不上手动价 —— 该渠道自然不可选，不能展示一个会亏的价。
+            return variant;
+          }
+        }),
+      )
+    : entry.variants;
+  const manualNote = manualConfig
+    ? t.buy.manualNote(manualConfig.markupPercent.replace(/\.0+$/, "").replace(/\.$/, ""))
+    : null;
 
   const soldOut = entry.totalStock <= 0;
   const reservableHere = soldOut && entry.reservable;
@@ -216,8 +258,9 @@ export default async function ProductPage({ params }: Params) {
                 supplierId={entry.supplierId}
                 code={entry.code}
                 currency={currency}
-                variants={entry.variants}
+                variants={variantsWithManual}
                 chains={payableChains.map((chain) => ({ id: chain.id }))}
+                manual={manualChannels ? { channels: manualChannels, note: manualNote ?? "" } : null}
                 balance={user ? user.balance : null}
                 reservable={reservableHere}
                 labels={{

@@ -110,6 +110,61 @@ export function applyMarkup(costInDisplay: Decimal, markup: MarkupConfig): Decim
   return costInDisplay.mul(new Decimal(100).plus(markup.amount).div(100));
 }
 
+/**
+ * 手动收款渠道（支付宝/微信转账）的客户单价。
+ *
+ * 商品表里的 price 是同步时按默认加价烘出来的链上售价；人工对账的单
+ * 要按**成本口径重算**（如 30%），不能在售价上打补丁 —— 打补丁会被
+ * 优惠券、阶梯价来回放大。阶梯折扣以「该档售价 ÷ 基础售价」的比例
+ * 保持原形状，买得多依旧更便宜。
+ */
+export function manualUnitPrice(input: {
+  /** 上游成本（上游结算币种，如 CNY）。 */
+  cost: string | number;
+  /** 基础零售价（数量 1 的链上售价，含默认加价），用作阶梯比例的分母。 */
+  baseRetailPrice: string | number;
+  /** 当前数量档的链上售价。 */
+  tierUnitPrice: string | number;
+  rates: Record<string, string>;
+  /** 上游结算币种 → 店铺展示币种。 */
+  fromCurrency: string;
+  toCurrency: string;
+  /** 人工渠道的加价（成本口径百分比，如 "30"）。 */
+  markupPercent: string;
+  rounding: { mode: "up" | "nearest"; increment: string };
+}): string {
+  const rate = resolveRate(input.rates, input.fromCurrency, input.toCurrency);
+  if (rate === null) {
+    throw new Error(`缺少汇率 ${input.fromCurrency}_${input.toCurrency}，无法计算手动收款价格`);
+  }
+  const costInDisplay = new Decimal(input.cost).mul(rate);
+  const base = applyMarkup(costInDisplay, {
+    type: "percent",
+    amount: input.markupPercent,
+  });
+
+  const baseRetail = new Decimal(input.baseRetailPrice);
+  const tierRatio = baseRetail.isZero()
+    ? new Decimal(1)
+    : new Decimal(input.tierUnitPrice).div(baseRetail);
+
+  return roundPrice(base.mul(tierRatio), input.rounding.mode, input.rounding.increment).toFixed(2);
+}
+
+/** 展示币种金额换算成收款币种金额（向上取整到分）—— 人工收款单显示 ¥ 用。 */
+export function convertAmount(
+  amount: string | number,
+  rates: Record<string, string>,
+  from: string,
+  to: string,
+): string {
+  const rate = resolveRate(rates, from, to);
+  if (rate === null) {
+    throw new Error(`缺少汇率 ${from}_${to}，无法换算收款金额`);
+  }
+  return new Decimal(amount).mul(rate).toDecimalPlaces(2, Decimal.ROUND_UP).toFixed(2);
+}
+
 /** 从 overrides 里挑出适用于该商品的加价规则，没有则用默认值。 */
 export function resolveMarkup(
   pricing: PricingConfig,

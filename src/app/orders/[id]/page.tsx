@@ -13,6 +13,8 @@ import { notFound } from "next/navigation";
 import { PageFrame } from "@/components/page-frame";
 import { OrderView } from "@/components/order-view";
 import { getOrder } from "@/orders/service";
+import { convertAmount } from "@/pricing/engine";
+import { fxFromConfig } from "@/catalog/sync";
 import { loadPage, userSummary } from "@/runtime/page-context";
 
 export const dynamic = "force-dynamic";
@@ -62,6 +64,29 @@ export default async function OrderPage({
         payAddress={order.payAddress ?? ""}
         chainId={order.chainId ?? ""}
         payWindowEndsAt={order.payWindowEndsAt ?? ""}
+        manualPayment={
+          order.payMethod !== "chain" && order.payMethod !== "balance"
+            ? (() => {
+                const channel = config.payments.manual?.channels.find(
+                  (item) => item.id === order.payMethod,
+                );
+                if (!channel) return null;
+                // 人工对账按订单号核对，显示给客户转的是本币金额（¥）。
+                return {
+                  channel: channel.label,
+                  account: channel.account,
+                  qrImage: channel.qrImage ?? null,
+                  instructions: channel.instructions ?? null,
+                  amountCny: convertAmount(
+                    order.priceTotal,
+                    fxFromConfig(context).rates,
+                    config.store.currency,
+                    "CNY",
+                  ),
+                };
+              })()
+            : null
+        }
         createdAt={order.createdAt}
         reservation={order.reservation}
         /* 退到余额的资格：预订中 + 登录 + 本人的单。匿名预订走客服。 */

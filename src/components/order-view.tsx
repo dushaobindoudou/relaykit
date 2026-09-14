@@ -71,6 +71,11 @@ export interface OrderCopy {
   refunding: string;
   refundedToBalance: string;
   refundFailed: string;
+  manualTitle: string;
+  manualPending: string;
+  manualAccount: string;
+  manualAmount: string;
+  manualReference: string;
 }
 
 export function OrderView(props: {
@@ -89,6 +94,14 @@ export function OrderView(props: {
   createdAt: string;
   /** 预订单标记：影响等待补货提示与自助退款入口的展示。 */
   reservation?: boolean;
+  /** 手动收款渠道（支付宝/微信转账）的展示信息；非转账单为 null。 */
+  manualPayment?: {
+    channel: string;
+    account: string;
+    qrImage: string | null;
+    instructions: string | null;
+    amountCny: string;
+  } | null;
   /** 预订单可自助退到余额（登录 + 本人）。 */
   canRefundReservation?: boolean;
 }) {
@@ -174,6 +187,7 @@ export function OrderView(props: {
   }, [props.orderId, password, settled]);
 
   const copy = props.copy;
+  const manualPayment = props.manualPayment ?? null;
   const view = props.statusCopy[status] ?? props.statusCopy.draft;
   const tone = TONE_BY_STATUS[status] ?? "neutral";
 
@@ -191,7 +205,48 @@ export function OrderView(props: {
       </h1>
       <p className="mt-2 text-[14px] text-[var(--text-muted)]">{view.help}</p>
 
-      {status === "awaiting_payment" && (
+      {status === "awaiting_payment" && manualPayment && (
+        <div className="mt-7 rounded-[var(--radius-card)] border border-[var(--line-strong)] p-5">
+          <h2 className="text-[15px] font-semibold text-[var(--text)]">
+            {copy.manualTitle} · {manualPayment.channel}
+          </h2>
+          <p className="mt-1.5 text-[13px] leading-relaxed text-[var(--text-muted)]">
+            {copy.manualPending}
+          </p>
+          <dl className="mt-4 space-y-3 text-[13px]">
+            <div className="flex items-baseline justify-between gap-4">
+              <dt className="text-[var(--text-muted)]">{copy.manualAmount}</dt>
+              <dd className="numeric text-[17px] font-semibold text-[var(--text)]">
+                ¥{manualPayment.amountCny}
+              </dd>
+            </div>
+            <div className="flex items-baseline justify-between gap-4">
+              <dt className="shrink-0 text-[var(--text-muted)]">{copy.manualAccount}</dt>
+              <dd className="numeric text-right font-medium text-[var(--text)]">
+                {manualPayment.account}
+              </dd>
+            </div>
+          </dl>
+          {manualPayment.qrImage && (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              src={manualPayment.qrImage}
+              alt={manualPayment.channel}
+              className="mt-4 h-40 w-40 rounded-[var(--radius-card)] border border-[var(--line)]"
+            />
+          )}
+          <p className="mt-4 border-t border-[var(--line)] pt-3 text-[12px] leading-relaxed text-[var(--text-muted)]">
+            {copy.manualReference}
+            <span className="numeric font-semibold text-[var(--text)]">{props.orderId}</span>
+          </p>
+          {manualPayment.instructions && (
+            <p className="mt-1.5 text-[12px] leading-relaxed text-[var(--text-muted)]">
+              {manualPayment.instructions}
+            </p>
+          )}
+        </div>
+      )}
+      {status === "awaiting_payment" && !manualPayment && (
         <div className="mt-7">
           <PaymentInstructions
             amount={props.payAmount}

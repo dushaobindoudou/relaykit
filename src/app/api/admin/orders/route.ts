@@ -3,15 +3,16 @@
  *
  * 没有它，人工发货的店主只能直接改数据库。三个动作：
  *   GET                     列待办（paid/reserved/needs_review/procurement_failed）
- *   POST ?action=fulfill    人工发货：录入手动买到的卡密
- *   POST ?action=refund     给已付款但发不了货的订单退到客户余额
+ *   POST ?action=fulfill           人工发货：录入手动买到的卡密
+ *   POST ?action=confirm-payment   人工确认支付宝/微信转账已到账
+ *   POST ?action=refund            给已付款但发不了货的订单退到客户余额
  *
  * ADMIN_TOKEN 保护；管理操作一律记事件日志（applyEvent 内置）。
  */
 
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 
-import { listOrders, manualFulfill, getOrder, applyAdminRefund } from "@/orders/service";
+import { listOrders, manualFulfill, getOrder, applyAdminRefund, markPaid } from "@/orders/service";
 import { buildContext, type Bindings } from "@/runtime/context";
 import type { OrderStatus } from "@/orders/state";
 
@@ -137,6 +138,26 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ ok: true });
   }
 
+  if (body.action === "confirm-payment") {
+    // 手动收款渠道（支付宝/微信转账）的人工确认：店主在收款 App 里看到
+    // 转账（备注里带订单号）后点确认。确认后进入与链上单完全相同的
+    // 自动采购管线 —— 这里只做「钱到了」这一步的登记。
+    const order = await getOrder(result.context, orderId);
+    if (!order) return Response.json({ ok: false, error: "订单不存在" }, { status: 404 });
+    if (order.status !== "awaiting_payment" || order.payMethod === "chain" || order.payMethod === "balance") {
+      return Response.json(
+        { ok: false, error: "该订单不是等待人工确认的转账订单" },
+        { status: 400 },
+      );
+    }
+
+    const paid = await markPaid(result.context, order, `manual:${order.payMethod}`, order.priceTotal);
+    if (!paid.ok) {
+      return Response.json({ ok: false, error: paid.status }, { status: 400 });
+    }
+    return Response.json({ ok: true, status: paid.status });
+  }
+
   if (body.action === "refund") {
     // 管理员退款：退到下单账号的余额。匿名订单（无 userId）只能线下退，
     // 这里明确拒绝而不是假装成功。
@@ -155,7 +176,7 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   return Response.json(
-    { ok: false, error: "action 必须是 fulfill 或 refund" },
+    { ok: false, error: "action 必须是 fulfill、confirm-payment 或 refund" },
     { status: 400 },
   );
 }

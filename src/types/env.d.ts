@@ -27,6 +27,10 @@ interface CloudflareEnv {
   /** WAF 中继的共享密钥（scripts/relay-upstream.mjs 与 Worker 两边一致）。 */
   RELAY_SECRET?: string;
 
+  /** 手动收款渠道（支付宝/微信）的收款账号，展示给客户转账用。 */
+  ALIPAY_ACCOUNT?: string;
+  WECHAT_ACCOUNT?: string;
+
   /** 收款地址。钱的去处，部署前务必核对。 */
   POLYGON_ADDRESS?: string;
   BSC_ADDRESS?: string;

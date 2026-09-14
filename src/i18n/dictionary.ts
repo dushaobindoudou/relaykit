@@ -67,6 +67,8 @@ export const en = {
     reserveSubmit: "Reserve — pay now, ships on restock",
     notConfigured: "Payment not configured",
     window: (minutes: number) => `You will have ${minutes} minutes to send payment.`,
+    manualNote: (percent: string) =>
+      `Transfer payment — confirmed manually by our team, priced ${percent}% above the crypto rate.`,
   },
   order: {
     orderNumber: "Order",
@@ -93,6 +95,11 @@ export const en = {
     refunding: "Refunding…",
     refundedToBalance: "Refunded to your account balance.",
     refundFailed: "Could not refund automatically. Please contact support.",
+    manualTitle: "Pay by transfer",
+    manualPending: "Send the transfer, then wait here — we confirm receipts manually and your code is delivered automatically right after.",
+    manualAccount: "Account",
+    manualAmount: "Amount to send",
+    manualReference: "Add your order number as the transfer note:",
   },
   status: {
     draft: { label: "Preparing", help: "Setting up your order." },
@@ -259,6 +266,8 @@ export const zh: Dict = {
     reserveSubmit: "预订购买 — 付款占位，补货即发",
     notConfigured: "收款未配置",
     window: (minutes: number) => `创建后有 ${minutes} 分钟的付款时间。`,
+    manualNote: (percent: string) =>
+      `转账支付 — 到账由人工确认后自动发货，价格含 ${percent}% 人工渠道加价。`,
   },
   order: {
     orderNumber: "订单号",
@@ -284,6 +293,11 @@ export const zh: Dict = {
     refunding: "退款中…",
     refundedToBalance: "已退到你的账户余额。",
     refundFailed: "自动退款失败，请联系客服。",
+    manualTitle: "转账支付",
+    manualPending: "完成转账后请留在本页 —— 到账由人工确认，确认后卡密自动出现。",
+    manualAccount: "收款账号",
+    manualAmount: "应付金额",
+    manualReference: "转账时请备注订单号：",
   },
   status: {
     draft: { label: "准备中", help: "正在创建订单。" },

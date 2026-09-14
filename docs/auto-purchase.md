@@ -80,7 +80,30 @@ zhanghao66.com 前台 JS（ACG发卡 v3.6.0 Tokyo 主题），2026-09-14 全链�
   - 未付款上游过期 → 自动重下（最多 3 次），之后转人工。
 - 出款失败（RPC 抖动）不上报状态机 —— 钱还在钱包里，下一轮 cron 重试。
 
-## 四、时序
+## 四、两个收款版本（20% / 30%）
+
+| | 版本 A：链上 USDT（全自动） | 版本 B：支付宝/微信转账（人工确认） |
+| --- | --- | --- |
+| 客户价 | 成本 × 1.20（`pricing.markup`） | 成本 × 1.30（`payments.manual.markupPercent`） |
+| 到账 | 链上监听自动确认 | 店主在收款 App 里看到转账后，调管理端确认 |
+| 发货 | 自动采购管线 | **同一条**自动采购管线（确认后无区别） |
+| 依赖 | POLYGON_ADDRESS 等 | ALIPAY_ACCOUNT / WECHAT_ACCOUNT（`wrangler secret put`） |
+
+版本 B 的语义：
+
+- 下单时不分配链上地址、不打金额标 —— watcher 按（地址, 金额）匹配，
+  空字段天然不匹配，不会被误确认；
+- 订单页展示收款账号/收款码/**¥ 应付金额**（按汇率换算，向上取整到分）
+  和订单号（转账备注用）；24 小时未确认自动关单；
+- 管理员确认：`POST /api/admin/orders`，body
+  `{"action":"confirm-payment","orderId":"..."}`（ADMIN_TOKEN Bearer 鉴权）。
+  待确认单用 `GET /api/admin/orders?status=awaiting_payment` 过滤
+  `payMethod` 为 alipay/wechat 的行；
+- 确认后 markPaid → paid → 每分钟 cron 走游客下单 + 热钱包付款 + 收卡交付，
+  与链上单完全一致；
+- 批发阶梯折扣在手动价上按比例保持（该档售价 ÷ 基础售价），买得多依旧便宜。
+
+## 五、时序
 
 每分钟 cron（`worker/entry.ts`）：
 

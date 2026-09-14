@@ -231,6 +231,37 @@ export const paymentsSchema = z.object({
   windowMinutes: z.number().int().min(5).max(720).default(30),
   chains: z.array(chainSchema).min(1, "至少要启用一条收款链"),
   /**
+   * 手动收款渠道（支付宝/微信转账）：客户转账、管理员人工确认到账，
+   * 确认后照走自动采购管线发货。人工对账有成本，这类订单按
+   * markupPercent（成本口径）重新计价 —— 通常比链上自动收款贵。
+   */
+  manual: optionalSection(
+    z
+      .object({
+        enabled: z.boolean().default(false),
+        /** 手动渠道订单的加价（成本口径百分比）。链上是 20% 时这里通常是 "30"。 */
+        markupPercent: decimalString.default("30"),
+        /** 未付款的人工收款单保留时长（小时），超时自动关闭。 */
+        windowHours: z.number().int().min(1).max(168).default(24),
+        channels: z
+          .array(
+            z.object({
+              /** 渠道标识，出现在订单 pay_method 与结账表单里（如 alipay/wechat）。 */
+              id: z.string().regex(/^[a-z0-9-]+$/, "只允许小写字母、数字和连字符"),
+              label: z.string().min(1),
+              /** 收款账号（手机号/邮箱/微信号），展示给客户。 */
+              account: z.string().min(1),
+              /** 收款码图片地址（可选，/media/ 下的本地图）。 */
+              qrImage: z.string().optional(),
+              /** 转账说明（如"转账请备注订单号"）。 */
+              instructions: z.string().optional(),
+            }),
+          )
+          .default([]),
+      })
+      .default({ enabled: false, markupPercent: "30", windowHours: 24, channels: [] }),
+  ),
+  /**
    * 金额打标：同一个收款地址靠唯一的小数尾数区分订单，省掉为每单派生地址
    * 的密钥管理。
    *

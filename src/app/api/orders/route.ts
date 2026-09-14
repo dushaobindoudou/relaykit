@@ -54,7 +54,9 @@ export async function POST(request: Request): Promise<Response> {
     (await cookies()).get(SESSION_COOKIE)?.value,
   );
 
-  const payMethod = str(body.payMethod) === "balance" ? "balance" : "chain";
+  // payMethod 原样下传：chain/balance 之外视为手动收款渠道 id，
+  // createOrder 会对照配置校验，未知渠道直接拒绝。
+  const payMethod = str(body.payMethod) ?? "chain";
   const couponCode = str(body.couponCode);
 
   const created = await createOrder(result.context, {

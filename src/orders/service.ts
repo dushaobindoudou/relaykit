@@ -8,7 +8,8 @@
 
 import { and, eq, sql } from "drizzle-orm";
 
-import { findProduct } from "@/catalog/sync";
+import { findProduct, fxFromConfig } from "@/catalog/sync";
+import { manualUnitPrice } from "@/pricing/engine";
 import { isPlaceholderAddress } from "@/config/schema";
 import { orderEvents, orders, type Order } from "@/db/schema";
 import type { DaichongContext } from "@/runtime/context";
@@ -107,8 +108,8 @@ export interface CreateOrderInput {
   queryPassword: string;
   /** 链上支付时必填；余额支付时忽略。 */
   chainId?: string;
-  /** "balance" 走余额扣款并立即进入待发货；其余走链上收款。 */
-  payMethod?: "chain" | "balance";
+  /** "balance" 走余额扣款；"chain" 走链上收款；其余视为手动收款渠道 id（如 alipay/wechat）。 */
+  payMethod?: string;
   /** 登录用户。余额支付必须有。 */
   user?: User | null;
   couponCode?: string;
@@ -127,6 +128,16 @@ export async function createOrder(
 
   if (payMethod === "balance" && !input.user) {
     return { ok: false, error: "余额支付需要先登录" };
+  }
+
+  // —— 手动收款渠道（支付宝/微信转账）：管理员确认到账后照走自动采购 ——
+  const manualConfig = config.payments.manual?.enabled ? config.payments.manual : undefined;
+  const manualChannel =
+    payMethod !== "chain" && payMethod !== "balance"
+      ? manualConfig?.channels.find((item) => item.id === payMethod) ?? null
+      : null;
+  if (payMethod !== "chain" && payMethod !== "balance" && !manualChannel) {
+    return { ok: false, error: "该收款方式不可用" };
   }
 
   // —— 链上支付：先确认这条链真的能收钱 ——
@@ -179,7 +190,21 @@ export async function createOrder(
   }
 
   // —— 定价：阶梯价 → 小计 → 优惠券 ——
-  const unitPrice = resolveUnitPrice(product, input.quantity);
+  // 手动收款渠道按成本口径重算（30% 加价），其余用同步好的链上售价。
+  const tierUnitPrice = resolveUnitPrice(product, input.quantity);
+  const unitPrice = manualChannel
+    ? manualUnitPrice({
+        cost: product.cost,
+        baseRetailPrice: product.price,
+        tierUnitPrice,
+        rates: fxFromConfig(context).rates,
+        fromCurrency:
+          context.config.suppliers.find((item) => item.id === input.supplierId)?.currency ?? "CNY",
+        toCurrency: config.store.currency,
+        markupPercent: manualConfig!.markupPercent,
+        rounding: config.pricing.rounding,
+      })
+    : tierUnitPrice;
   const subtotal = (Number(unitPrice) * input.quantity).toFixed(2);
   const costTotal = (Number(product.cost) * input.quantity).toFixed(2);
 
@@ -273,6 +298,42 @@ export async function createOrder(
       toStatus: row.status,
       accepted: true,
       detail: JSON.stringify({ payMethod: "balance", amount: total, reservation }),
+      createdAt: now.toISOString(),
+    });
+
+    if (input.couponCode) {
+      await couponService.redeem(context, input.couponCode, orderId, identity, discount);
+    }
+
+    return { ok: true, order: row as unknown as Order };
+  }
+
+  // —— 手动收款（支付宝/微信转账）：不分配链上地址，管理员确认到账后
+  // markPaid 进入与链上单完全相同的自动采购管线。 ——
+  if (manualChannel) {
+    const orderId = newOrderId();
+    const manualWindowEnd = new Date(now.getTime() + manualConfig!.windowHours * 3_600_000);
+    const row = {
+      ...base,
+      id: orderId,
+      status: "awaiting_payment" as const,
+      requestNo: newRequestNo(),
+      // 人工对账按订单号核对转账，不靠金额打标 —— 不占用链上金额槽位，
+      // 也绝不能带地址：watcher 按 (地址, 金额) 匹配，空字段天然不匹配。
+      payAmount: null,
+      chainId: null,
+      payAddress: null,
+      payWindowEndsAt: manualWindowEnd.toISOString(),
+    };
+
+    await context.db.insert(orders).values(row);
+    await context.db.insert(orderEvents).values({
+      orderId,
+      eventType: "payment_requested",
+      fromStatus: "draft",
+      toStatus: "awaiting_payment",
+      accepted: true,
+      detail: JSON.stringify({ manual: manualChannel.id, amount: total }),
       createdAt: now.toISOString(),
     });
 

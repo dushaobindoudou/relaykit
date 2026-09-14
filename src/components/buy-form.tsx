@@ -16,6 +16,8 @@ interface Variant {
   race: string;
   price: string;
   stock: number;
+  /** 手动收款渠道（支付宝/微信）的单价；未启用手动收款时缺省。 */
+  manualPrice?: string;
 }
 
 /**
@@ -60,6 +62,7 @@ export function BuyForm({
   currency,
   variants,
   chains,
+  manual,
   balance,
   reservable = false,
   labels,
@@ -69,6 +72,8 @@ export function BuyForm({
   currency: string;
   variants: Variant[];
   chains: { id: string }[];
+  /** 手动收款渠道（支付宝/微信转账）。未启用为 null。 */
+  manual: { channels: { id: string; label: string }[]; note: string } | null;
   /** 登录用户的余额；未登录为 null。 */
   balance: string | null;
   /** 缺货时可预订：按钮变为「预订购买」，提交与普通单一致（服务端标记）。 */
@@ -82,7 +87,7 @@ export function BuyForm({
   const [quantity, setQuantity] = useState(1);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [payMethod, setPayMethod] = useState<"chain" | "balance">("chain");
+  const [payMethod, setPayMethod] = useState<string>("chain");
   const [chainId, setChainId] = useState(chains[0]?.id ?? "");
   const [error, setError] = useState<string | null>(null);
 
@@ -92,7 +97,11 @@ export function BuyForm({
   const [checkingCoupon, setCheckingCoupon] = useState(false);
 
   const selected = variants.find((item) => item.race === race) ?? variants[0];
-  const unitPrice = Number(selected?.price ?? 0);
+  const isManual = payMethod !== "chain" && payMethod !== "balance";
+  // 手动收款渠道按成本口径单独计价（30%），切渠道时总价跟着切。
+  const unitPrice = isManual
+    ? Number(selected?.manualPrice ?? selected?.price ?? 0)
+    : Number(selected?.price ?? 0);
   const subtotal = unitPrice * quantity;
   const discount = coupon ? Number(coupon.discount) : 0;
   const total = Math.max(0, subtotal - discount).toFixed(2);
@@ -100,7 +109,12 @@ export function BuyForm({
   const soldOut = (selected?.stock ?? 0) < quantity && !reservable;
   const noChain = chains.length === 0;
   const balanceEnough = balance !== null && Number(balance) >= Number(total);
-  const canPay = payMethod === "balance" ? balanceEnough : !noChain;
+  const canPay =
+    payMethod === "balance"
+      ? balanceEnough
+      : payMethod === "chain"
+        ? !noChain
+        : true;
 
   /** 换规格或数量后原有折扣可能不再成立（最低消费、毛利护栏），一律清掉重算。 */
   function invalidateCoupon() {
@@ -313,8 +327,8 @@ export function BuyForm({
         )}
       </div>
 
-      {/* 支付方式：登录后才出现余额选项 */}
-      {(balance !== null || chains.length > 1) && (
+      {/* 支付方式：登录后才出现余额选项；手动收款渠道启用时常驻 */}
+      {(balance !== null || chains.length > 1 || (manual !== null && manual.channels.length > 0)) && (
         <fieldset className="mt-5">
           <legend className="eyebrow">{labels.payWith}</legend>
           <div className="mt-2.5 flex flex-wrap gap-2">
@@ -359,7 +373,29 @@ export function BuyForm({
                 {chain.id}
               </label>
             ))}
+            {manual?.channels.map((channel) => (
+              <label
+                key={channel.id}
+                className={`cursor-pointer rounded-[var(--radius-card)] border px-3 py-2 text-[13px] ${
+                  payMethod === channel.id
+                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-fg)]"
+                    : "border-[var(--line-strong)]"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="payMethod"
+                  className="sr-only"
+                  checked={payMethod === channel.id}
+                  onChange={() => setPayMethod(channel.id)}
+                />
+                {channel.label}
+              </label>
+            ))}
           </div>
+          {isManual && manual?.note && (
+            <p className="mt-2 text-[12px] text-[var(--text-muted)]">{manual.note}</p>
+          )}
           {payMethod === "balance" && !balanceEnough && (
             <p className="mt-2 text-[12px] text-[var(--danger)]">{labels.insufficient}</p>
           )}
