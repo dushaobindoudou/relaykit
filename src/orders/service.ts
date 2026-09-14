@@ -15,6 +15,7 @@ import type { DaichongContext } from "@/runtime/context";
 import { transition, type OrderEvent, type OrderStatus } from "@/orders/state";
 import type { PurchaseRequest } from "@/supplier/types";
 import * as ledger from "@/accounts/balance";
+import { getAutoPurchase, startUpstreamPurchase } from "@/orders/auto-purchase";
 import * as couponService from "@/pricing/coupon";
 import { tagAmount } from "@/payments/tagging";
 import type { User } from "@/db/schema";
@@ -45,7 +46,7 @@ async function hashPassword(password: string): Promise<string> {
  * 写事件与改状态必须一起成败，否则会出现「状态变了但没有记录」或反过来。
  * D1 没有交互式事务，用 batch 保证原子性。
  */
-async function applyEvent(
+export async function applyEvent(
   context: DaichongContext,
   order: Pick<Order, "id" | "status">,
   event: OrderEvent,
@@ -417,6 +418,17 @@ export async function fulfillOrder(
   context: DaichongContext,
   order: Order,
 ): Promise<{ ok: boolean; status: OrderStatus; message: string }> {
+  // 自动中转采购：以上游普通客户的身份游客下单 + 热钱包自动付款，
+  // 走完「付款→到账→收卡」后再交付。不依赖适配器，与适配器路径互斥。
+  const autoPurchase = getAutoPurchase(context, order.supplierId);
+  if (autoPurchase) {
+    const started = await applyEvent(context, order, { type: "procurement_started" });
+    if (!started.ok) {
+      return { ok: false, status: started.status, message: started.reason ?? "" };
+    }
+    return startUpstreamPurchase(context, order, autoPurchase);
+  }
+
   const adapter = context.suppliers.get(order.supplierId);
   if (!adapter) {
     const flagged = await applyEvent(

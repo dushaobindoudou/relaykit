@@ -78,6 +78,26 @@ export const supplierSchema = z.object({
    * 卖一单亏一单。
    */
   costBasis: z.enum(["retail", "agent"]).default("retail"),
+  /**
+   * WAF 中继（可选）。上游拦 Cloudflare Workers 出口 IP 时，自动采购的
+   * 上游请求经由这个中继转发；本地/自有服务器直连时留空。
+   */
+  relayUrl: z.string().url().optional(),
+  /**
+   * 自动中转采购（仅 acgfaka-public）：以上游普通客户的身份游客下单，
+   * 用热钱包按官方 USDT 通道自动付款，收卡后自动交付。差价留在钱包。
+   */
+  autoPurchase: z.object({
+    enabled: z.boolean(),
+    /** 游客下单的联系身份，也是上游订单查询凭据之一。必须是我们可控的邮箱。 */
+    contact: z.string().email(),
+    /** 上游支付通道 id（/user/api/index/pay 列表）。必须是 EVM USDT 通道才能自动付款。 */
+    payChannelId: z.number().int().min(1),
+    /** 资金护栏：单笔自动付款的 USDT 上限，超出转人工。默认 "30"。 */
+    maxPayUsdt: decimalString.default("30"),
+    /** 上游通道最低金额门槛，低于时自动凑单（多买的余量进本地库存）。默认 "25"。 */
+    minBatchCny: decimalString.default("25"),
+  }).optional(),
 }).superRefine((value, ctx) => {
   // acgfaka-public 只需要 domain。
   if (value.driver === "acgfaka-public" && !value.domain) {

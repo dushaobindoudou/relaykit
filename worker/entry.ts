@@ -20,6 +20,7 @@ import openNextHandler from "../.open-next/worker.js";
 import { expireStaleTopups } from "@/accounts/topup";
 import { syncAll } from "@/catalog/sync";
 import { expireStaleOrders, fulfillOrder } from "@/orders/service";
+import { settleUpstreamPurchases } from "@/orders/auto-purchase";
 import { watchAll } from "@/payments/watcher";
 import { orders } from "@/db/schema";
 import { buildContext, type Bindings, type DaichongContext } from "@/runtime/context";
@@ -67,6 +68,15 @@ async function runScheduled(cron: string, env: Bindings): Promise<void> {
       }
 
       await fulfillPaidOrders(context);
+
+      // 自动中转采购的下半场：付款/轮询/收卡。放在发货之后，
+      // 刚下上游单的订单下一分钟就开始被推进。
+      const settled = await settleUpstreamPurchases(context);
+      if (settled.delivered > 0 || settled.flagged > 0) {
+        console.log(
+          `[cron] 自动采购推进 ${settled.handled} 单：交付 ${settled.delivered}、转人工 ${settled.flagged}`,
+        );
+      }
 
       const expired = await expireStaleOrders(context);
       const expiredTopups = await expireStaleTopups(context);

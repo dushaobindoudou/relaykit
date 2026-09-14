@@ -66,6 +66,44 @@ export interface FaultInjection {
   tradeOmitTradeNo?: boolean;
 }
 
+/** 游客购买面的商品（前台 /item/{id} 展示的那份）。 */
+export interface MockGuestItem {
+  itemId: string;
+  name: string;
+  race: string;
+  /** 零售价（元）。 */
+  unitPriceCny: string;
+  stock: number;
+  /** 下单确认条款开关（真站 order_confirm_status）。 */
+  confirmStatus: 0 | 1;
+}
+
+interface MockGuestOrder {
+  tradeNo: string;
+  itemId: string;
+  num: number;
+  amountCny: string;
+  contact: string;
+  expired: boolean;
+}
+
+/** 游客面故障注入。 */
+export interface GuestFaultInjection {
+  /** 下一次游客 trade 返回指定业务错误（如"库存不足"）。 */
+  guestTradeRejectWith?: string;
+  /** 游客 trade 返回"金额不满足 XX-USDT 支付"（通道门槛）。 */
+  guestTradeMinimumAmount?: boolean;
+  /** 游客 query 一直返回非 200（复现"已付款但上游过期清理"）。 */
+  guestQueryAlwaysFail?: boolean;
+}
+
+/** 游客面固定参数，测试断言与购买客户端契约对齐用。 */
+export const MOCK_USDT_ADDRESS = "0x000000000000000000000000000000000000d34d";
+export const MOCK_USDT_CHAIN_LABEL = "Polygon";
+export const MOCK_CNY_USDT_RATE = 6.6;
+/** 模拟 USDT 通道最低金额门槛（元）。 */
+export const MOCK_MIN_ORDER_CNY = 10;
+
 export class MockUpstream {
   readonly faults: FaultInjection = {};
 
@@ -73,6 +111,14 @@ export class MockUpstream {
   #balance: number;
   #orders = new Map<string, MockOrder>();
   #tradeSeq = 0;
+
+  // —— 游客购买面状态（自动中转采购链路测试用）——
+  #guestItems: MockGuestItem[] = [];
+  #guestOrders = new Map<string, MockGuestOrder>();
+  #guestPaid = new Set<string>();
+  #guestSeq = 0;
+  /** 游客面故障注入。 */
+  readonly guestFaults: GuestFaultInjection = {};
 
   // 显式字段而非构造函数参数属性 —— Node 的类型剥离不支持后者。
   readonly #options: MockUpstreamOptions;
@@ -89,6 +135,28 @@ export class MockUpstream {
   /** 已落单的 request_no 集合，测试用来断言"到底扣没扣款"。 */
   get committedRequestNos(): string[] {
     return [...this.#orders.values()].map((order) => order.requestNo);
+  }
+
+  // —— 游客面测试驱动器 ——
+
+  setGuestItems(items: MockGuestItem[]): void {
+    this.#guestItems = items;
+  }
+
+  /** 模拟链上到账：付款即自动发货（自动发货型商品的真实行为）。 */
+  payGuestOrder(tradeNo: string): void {
+    this.#guestPaid.add(tradeNo);
+  }
+
+  /** 模拟收银台过期：真站 20 分钟未付会过期清理。 */
+  expireGuestOrder(tradeNo: string): void {
+    const order = this.#guestOrders.get(tradeNo);
+    if (order) order.expired = true;
+  }
+
+  /** 游客订单号集合，测试断言"到底有没有真下上游单"。 */
+  get guestTradeNos(): string[] {
+    return [...this.#guestOrders.keys()];
   }
 
   async start(): Promise<string> {
@@ -131,6 +199,19 @@ export class MockUpstream {
       return;
     }
 
+    const path = (req.url ?? "").split("?")[0] ?? "";
+    const query = new URL(req.url ?? "/", "http://localhost").searchParams;
+
+    // —— 游客购买面：不签名、不验 app_id，路径先分流（顺序即契约）——
+    if (
+      path.startsWith("/user/api/") ||
+      path.startsWith("/plugin/usdt/") ||
+      path.startsWith("/item/")
+    ) {
+      this.#handleGuest(path, params, query, res);
+      return;
+    }
+
     // —— 鉴权：顺序与 SharedValidation 一致，先 app_id 后签名 ——
     if (params.get("app_id") !== this.#options.appId) {
       json(0, "商户ID不存在");
@@ -147,7 +228,6 @@ export class MockUpstream {
       return;
     }
 
-    const path = (req.url ?? "").split("?")[0] ?? "";
     const product = this.#options.products.find(
       (item) => item.code === (params.get("code") ?? params.get("shared_code")),
     );
@@ -296,5 +376,178 @@ export class MockUpstream {
         category_factory: product.factoryPrice,
       },
     };
+  }
+
+  // ————————————————————— 游客购买面 —————————————————————
+
+  #handleGuest(
+    path: string,
+    body: URLSearchParams,
+    query: URLSearchParams,
+    res: ServerResponse,
+  ): void {
+    const json = (code: number, msg: string, data: unknown = {}): void => {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ code, msg, data }));
+    };
+    const html = (markup: string): void => {
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+      res.end(markup);
+    };
+    const field = (key: string): string =>
+      body.get(key) ?? query.get(key) ?? "";
+
+    // GET /item/{id} —— 商品详情页。confirm hash 内嵌在 _var_item JSON 里。
+    if (path.startsWith("/item/")) {
+      const itemId = path.slice("/item/".length);
+      const item = this.#guestItems.find((it) => it.itemId === itemId);
+      if (!item) {
+        res.writeHead(404, { "Content-Type": "text/html" });
+        res.end("not found");
+        return;
+      }
+      const varItem = {
+        id: Number(item.itemId),
+        name: item.name,
+        order_confirm_status: item.confirmStatus,
+        order_confirm_hash: item.confirmStatus === 1 ? "f".repeat(64) : "",
+        config: { category: { [item.race]: item.unitPriceCny } },
+      };
+      html(`<script>setVar("_var_item",${JSON.stringify(varItem)});</script>`);
+      return;
+    }
+
+    // GET /user/api/index/pay?itemId= —— 支付通道列表。
+    if (path === "/user/api/index/pay") {
+      json(200, "success", [
+        { id: 6, name: "USDT-polygon", icon: "", handle: "UsdtPay" },
+        { id: 5, name: "BEP-USDT", icon: "", handle: "UsdtPay" },
+      ]);
+      return;
+    }
+
+    // POST /user/api/order/trade —— 游客下单。
+    if (path === "/user/api/order/trade") {
+      const fault = this.guestFaults.guestTradeRejectWith;
+      if (fault) {
+        delete this.guestFaults.guestTradeRejectWith;
+        json(0, fault);
+        return;
+      }
+      const itemId = field("item_id");
+      const item = this.#guestItems.find((it) => it.itemId === itemId);
+      if (!item) return json(0, "商品不存在");
+
+      // 下单确认条款：开关开着就必须带 agree + hash（真站强校验）。
+      if (item.confirmStatus === 1) {
+        if (field("order_confirm_agree") !== "1" || field("order_confirm_hash") !== "f".repeat(64)) {
+          json(0, "请先阅读并同意该商品的下单确认条款");
+          return;
+        }
+      }
+
+      const num = Number(field("num") || "1");
+      const race = field("race");
+      if (race !== item.race) return json(0, "请选择商品规格");
+      if (field("pay_id") !== "6") return json(0, "支付方式不存在");
+      if (this.guestFaults.guestTradeMinimumAmount) {
+        json(0, `当前订单金额不满足${MOCK_USDT_CHAIN_LABEL}-USDT支付，请选择其他支付方式。`);
+        return;
+      }
+      if (item.stock < num) return json(0, "库存不足");
+
+      const amountCny = Number(item.unitPriceCny) * num;
+      if (amountCny < MOCK_MIN_ORDER_CNY) {
+        json(0, `当前订单金额不满足${MOCK_USDT_CHAIN_LABEL}-USDT支付，请选择其他支付方式。`);
+        return;
+      }
+      item.stock -= num;
+
+      this.#guestSeq += 1;
+      const tradeNo = `GUEST${String(this.#guestSeq).padStart(9, "0")}`;
+      this.#guestOrders.set(tradeNo, {
+        tradeNo,
+        itemId,
+        num,
+        amountCny: amountCny.toFixed(2),
+        contact: field("contact"),
+        expired: false,
+      });
+      json(200, "下单成功", {
+        tradeNo,
+        amount: amountCny.toFixed(2),
+        url: `/plugin/usdt/order/trade?tradeNo=${tradeNo}`,
+        secret: null,
+      });
+      return;
+    }
+
+    // GET /plugin/usdt/order/trade?tradeNo= —— USDT 收银台。
+    // class/data- 属性是购买客户端的解析契约，必须逐字对齐真站布局。
+    if (path === "/plugin/usdt/order/trade") {
+      const tradeNo = field("tradeNo");
+      const order = this.#guestOrders.get(tradeNo);
+      if (!order) {
+        res.writeHead(404, { "Content-Type": "text/html" });
+        res.end("expired");
+        return;
+      }
+      const amountUsdt = (Number(order.amountCny) / MOCK_CNY_USDT_RATE).toFixed(3);
+      html(
+        `<div class="amount copyAmount" data-clipboard-text="${amountUsdt}">${amountUsdt} <span>USDT</span></div>` +
+          `<div class="address-label">${MOCK_USDT_CHAIN_LABEL} 收款地址</div>` +
+          `<script>const paymentAddress = '${MOCK_USDT_ADDRESS}';</script>`,
+      );
+      return;
+    }
+
+    // POST /plugin/usdt/api/query —— 到账轮询。
+    if (path === "/plugin/usdt/api/query") {
+      if (this.guestFaults.guestQueryAlwaysFail) {
+        json(500, "订单已过期");
+        return;
+      }
+      const tradeNo = field("tradeNo");
+      const order = this.#guestOrders.get(tradeNo);
+      if (!order || order.expired) return json(500, "订单不存在");
+      json(200, "success", { status: this.#guestPaid.has(tradeNo) ? 1 : 0 });
+      return;
+    }
+
+    // POST /user/api/index/query —— 订单查询（keywords=tradeNo）。
+    if (path === "/user/api/index/query") {
+      const keywords = field("keywords");
+      const order = this.#guestOrders.get(keywords);
+      if (!order || order.expired) return json(200, "success", { total: 0, list: [] });
+      json(200, "success", {
+        total: 1,
+        list: [
+          {
+            trade_no: order.tradeNo,
+            status: this.#guestPaid.has(order.tradeNo) ? 1 : 0,
+            delivery_status: this.#guestPaid.has(order.tradeNo) ? 1 : 0,
+            amount: order.amountCny,
+            card_num: order.num,
+            contact: order.contact,
+          },
+        ],
+      });
+      return;
+    }
+
+    // POST /user/api/index/secret —— 取卡密。
+    if (path === "/user/api/index/secret") {
+      const tradeNo = field("tradeNo");
+      const order = this.#guestOrders.get(tradeNo);
+      if (!order) return json(0, "订单不存在");
+      if (!this.#guestPaid.has(tradeNo)) return json(0, "订单还未支付");
+      json(200, "success", {
+        secret: `GUEST-SECRET-${tradeNo}`,
+        leave_message: "guest-leave-message",
+      });
+      return;
+    }
+
+    json(0, "接口不存在");
   }
 }

@@ -30,6 +30,29 @@ suppliers:
   #   currency: CNY
   #   timeoutMs: 20000
 
+  # driver: acgfaka-public + autoPurchase —— 自动中转采购（二道贩子模式）。
+  # 不需要上游任何凭据：我们以上游普通客户的身份游客下单，用热钱包按
+  # 官方 USDT 通道自动付款，收卡后自动交付，差价留在我们钱包里。
+  # 前置条件见 docs/auto-purchase.md（中继 + 热钱包 + 资金护栏）。
+  # - id: upstream
+  #   driver: acgfaka-public
+  #   domain: "https://upstream.example.com"
+  #   currency: CNY
+  #   costBasis: retail
+  #   # Worker 出口被上游 WAF 拦时才需要；本地/自有服务器直连则删掉这行。
+  #   relayUrl: "https://your-relay.example.com"
+  #   autoPurchase:
+  #     enabled: true
+  #     # 游客下单的联系身份，必须是我们可控的邮箱（查单凭据之一）。
+  #     contact: "relay@your-shop.example.com"
+  #     # 上游支付通道 id。6/5 = EVM USDT（polygon/BSC，可自动付款）；
+  #     # 4 = TRC20 无法自动签名，选了也只会转人工。
+  #     payChannelId: 6
+  #     # 单笔自动付款上限（USDT），超出转人工 —— 资金护栏。
+  #     maxPayUsdt: "30"
+  #     # 上游 USDT 通道最低金额门槛，低于自动凑单（余量进本地库存）。
+  #     minBatchCny: "25"
+
 pricing:
   fx:
     # static：手工维护汇率。简单，但**它不会自己更新**，
@@ -42,7 +65,7 @@ pricing:
 
   # 默认加价。fixed 以 store.currency 计 —— "1" 就是每单赚 1 USDT。
   markup:
-    type: fixed         # fixed | percent
+    type: fixed         # fixed | percent；中转毛利率用 percent，如 amount: "20" 即加价 20%
     amount: "1"
 
   # 最低毛利护栏（毛利率 = (售价-成本)/售价）。

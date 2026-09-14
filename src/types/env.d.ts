@@ -18,6 +18,15 @@ interface CloudflareEnv {
   SUPPLIER_APP_ID?: string;
   SUPPLIER_APP_KEY?: string;
 
+  /**
+   * 自动采购的热钱包私钥（EVM 出款，polygon/BSC）。这是能花钱的钥匙：
+   * 只放小金额的专用钱包。未设置时自动付款一律转人工，绝不应跳过。
+   */
+  PAYOUT_WALLET_KEY?: string;
+
+  /** WAF 中继的共享密钥（scripts/relay-upstream.mjs 与 Worker 两边一致）。 */
+  RELAY_SECRET?: string;
+
   /** 收款地址。钱的去处，部署前务必核对。 */
   POLYGON_ADDRESS?: string;
   BSC_ADDRESS?: string;

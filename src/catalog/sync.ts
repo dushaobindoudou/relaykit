@@ -8,7 +8,7 @@
  * 但快照只用于**展示**。下单前的库存与价格必须现拉 —— 见 orders/service。
  */
 
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, or, sql } from "drizzle-orm";
 
 import type { DaichongContext } from "@/runtime/context";
 import { categories, products, type Category, type Product } from "@/db/schema";
@@ -341,12 +341,40 @@ export async function listSellable(context: DaichongContext) {
  * 侧栏用的分类列表。
  *
  * 只返回有可售商品的分类 —— 展示一个点进去是空的分类，比不展示更糟。
+ * 例外：二级分类入选时，它的一级分类必须跟着出现（哪怕自己没有直挂商品，
+ * sellableCount 为 0），否则树形侧栏里二级会悬空成无根的散点。
  */
 export async function listCategories(context: DaichongContext): Promise<Category[]> {
   const rows = await context.db
     .select()
     .from(categories)
     .where(sql`${categories.sellableCount} > 0`);
+
+  const present = new Set(rows.map((row) => `${row.supplierId}:${row.externalId}`));
+  const anchors = new Map<string, { supplierId: string; externalId: string }>();
+  for (const row of rows) {
+    if (!row.parentId) continue;
+    const key = `${row.supplierId}:${row.parentId}`;
+    if (!present.has(key)) anchors.set(key, { supplierId: row.supplierId, externalId: row.parentId });
+  }
+
+  if (anchors.size > 0) {
+    const missing = await context.db
+      .select()
+      .from(categories)
+      .where(
+        or(
+          ...[...anchors.values()].map((ref) =>
+            and(
+              eq(categories.supplierId, ref.supplierId),
+              eq(categories.externalId, ref.externalId),
+            ),
+          ),
+        ),
+      );
+    rows.push(...missing);
+  }
+
   return rows.sort((a, b) => a.sort - b.sort || a.name.localeCompare(b.name));
 }
 
@@ -439,7 +467,11 @@ export function groupByProduct(rows: Product[]): CatalogEntry[] {
 }
 
 export interface CatalogFilter {
-  categoryId?: string;
+  /**
+   * 分类 id。传数组时匹配其中任意一个 —— 点一级分类要连同它的二级子分类
+   * 一起过滤（「看该一级下的全部商品」），见 page.tsx 的展开逻辑。
+   */
+  categoryId?: string | string[];
   /** 关键词，匹配商品名与规格名。 */
   search?: string;
 }
@@ -450,7 +482,9 @@ export async function listCatalog(
 ): Promise<CatalogEntry[]> {
   const conditions = [eq(products.sellable, true)];
   if (filter.categoryId) {
-    conditions.push(eq(products.categoryId, filter.categoryId));
+    const ids = Array.isArray(filter.categoryId) ? filter.categoryId : [filter.categoryId];
+    // 空数组按「无匹配」处理，而不是把过滤条件整个丢掉。
+    conditions.push(ids.length > 0 ? inArray(products.categoryId, ids) : sql`0 = 1`);
   }
 
   const rows = await context.db

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { listCatalog, type CatalogEntry } from "@/catalog/sync";
 import { isPlaceholderAddress } from "@/config/schema";
 import { AnnouncementPopup } from "@/components/announcement-popup";
+import { CategoryTree } from "@/components/category-tree";
 import {
   AnnouncementBar,
   CategoryNav,
@@ -125,8 +126,20 @@ export default async function Home({
   const { context, locale, t, user, categories, banner, popups } = loaded.page;
   const { config } = context;
 
+  const activeCategory = categories.find((item) => item.externalId === categoryId);
+  // 点一级分类 = 看该一级下的全部商品：过滤范围展开为「本分类 + 直接子分类」。
+  // ?c= 的语义不变（仍是分类 id），只是父分类会带上子分类；点二级仍精确过滤。
+  const categoryFilter = activeCategory
+    ? [
+        activeCategory.externalId,
+        ...categories
+          .filter((item) => item.parentId === activeCategory.externalId)
+          .map((item) => item.externalId),
+      ]
+    : undefined;
+
   const entries = await listCatalog(context, {
-    ...(categoryId ? { categoryId } : {}),
+    ...(categoryFilter ? { categoryId: categoryFilter } : {}),
     ...(search ? { search } : {}),
   });
 
@@ -134,8 +147,6 @@ export default async function Home({
     .filter((chain) => chain.enabled && isPlaceholderAddress(chain.address))
     .map((chain) => chain.id);
   const canSell = unpayable.length < config.payments.chains.filter((c) => c.enabled).length;
-
-  const activeCategory = categories.find((item) => item.externalId === categoryId);
 
   return (
     <>
@@ -147,7 +158,10 @@ export default async function Home({
         user={userSummary(user)}
         search={search}
       />
-      <CategoryNav categories={categories} activeId={categoryId} t={t} />
+      {/* 移动端保留横滑 pill 导航；桌面端分类导航改为左侧两级树（见下方 aside）。 */}
+      <div className="md:hidden">
+        <CategoryNav categories={categories} activeId={categoryId} t={t} />
+      </div>
 
       <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
         {!canSell && (
@@ -157,37 +171,48 @@ export default async function Home({
           </div>
         )}
 
-        <div className="flex items-baseline justify-between gap-4">
-          <h1 className="text-[22px] font-semibold tracking-[-0.01em]">
-            {activeCategory ? activeCategory.name : t.nav.allCategories}
-          </h1>
-          <span className="numeric shrink-0 text-[13px] text-[var(--text-faint)]">
-            {t.home.itemCount(entries.length)}
-          </span>
-        </div>
+        {/* Dawn collection 页的骨架：左侧栏 + 商品区。无分类时不留空栏。 */}
+        <div className="md:flex md:gap-8">
+          {categories.length > 0 && (
+            <aside className="hidden md:block md:w-[200px] md:shrink-0">
+              <CategoryTree categories={categories} activeId={categoryId} t={t} />
+            </aside>
+          )}
 
-        {entries.length === 0 ? (
-          <div className="mt-10 rounded-[var(--radius-card)] bg-[var(--bg-sunken)] px-6 py-16 text-center">
-            <p className="text-[15px]">{search ? t.home.noMatch : t.home.empty}</p>
-            {!search && (
-              <p className="mx-auto mt-2 max-w-md text-[13px] leading-relaxed text-[var(--text-muted)]">
-                {t.home.emptyHint}
-              </p>
+          <div className="min-w-0 md:flex-1">
+            <div className="flex items-baseline justify-between gap-4">
+              <h1 className="text-[22px] font-semibold tracking-[-0.01em]">
+                {activeCategory ? activeCategory.name : t.nav.allCategories}
+              </h1>
+              <span className="numeric shrink-0 text-[13px] text-[var(--text-faint)]">
+                {t.home.itemCount(entries.length)}
+              </span>
+            </div>
+
+            {entries.length === 0 ? (
+              <div className="mt-10 rounded-[var(--radius-card)] bg-[var(--bg-sunken)] px-6 py-16 text-center">
+                <p className="text-[15px]">{search ? t.home.noMatch : t.home.empty}</p>
+                {!search && (
+                  <p className="mx-auto mt-2 max-w-md text-[13px] leading-relaxed text-[var(--text-muted)]">
+                    {t.home.emptyHint}
+                  </p>
+                )}
+              </div>
+            ) : (
+              // Dawn 的网格密度：手机 2 列、平板 3 列、桌面 4 列。
+              <div className="mt-6 grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 lg:grid-cols-4">
+                {entries.map((entry) => (
+                  <ProductCard
+                    key={`${entry.supplierId}:${entry.code}`}
+                    entry={entry}
+                    currency={config.store.currency}
+                    t={t}
+                  />
+                ))}
+              </div>
             )}
           </div>
-        ) : (
-          // Dawn 的网格密度：手机 2 列、平板 3 列、桌面 4 列。
-          <div className="mt-6 grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 lg:grid-cols-4">
-            {entries.map((entry) => (
-              <ProductCard
-                key={`${entry.supplierId}:${entry.code}`}
-                entry={entry}
-                currency={config.store.currency}
-                t={t}
-              />
-            ))}
-          </div>
-        )}
+        </div>
       </main>
 
       <StoreFooter

@@ -83,6 +83,21 @@ export const orders = sqliteTable(
      */
     reservation: integer("reservation", { mode: "boolean" }).notNull().default(false),
 
+    // —— 自动中转采购（上游游客订单侧）——
+    /** 上游订单号。null = 尚未向上游下单（或该供应商不走自动采购）。 */
+    upstreamTradeNo: text("upstream_trade_no"),
+    /** 上游 USDT 收银台的精确应付金额（原样字符串，绝不再换算）。 */
+    upstreamPayAmount: text("upstream_pay_amount"),
+    /** 上游收款地址与链（收银台解析结果）。 */
+    upstreamPayAddress: text("upstream_pay_address"),
+    upstreamPayChain: text("upstream_pay_chain"),
+    /** 我们热钱包的出款交易哈希。非空 = 已付，等上游确认发货。 */
+    upstreamPaidTxHash: text("upstream_paid_tx_hash"),
+    /** 游客下单用的联系邮箱（查询凭据之一）。 */
+    upstreamContact: text("upstream_contact"),
+    /** 上游下单尝试次数（过期重下限制在 3 次内）。 */
+    upstreamAttempt: integer("upstream_attempt").notNull().default(0),
+
     // —— 优惠 ——
     couponCode: text("coupon_code"),
     /** 优惠减免额，以 currency 计。priceTotal 是**减免后**的应付额。 */

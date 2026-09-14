@@ -15,6 +15,8 @@ export const en = {
     pricesIn: (currency: string) => `Prices in ${currency}`,
     search: "Search products",
     allCategories: "All products",
+    /** 侧栏分类树的无障碍标签。 */
+    categories: "Categories",
     signIn: "Sign in",
   },
   home: {
@@ -208,6 +210,7 @@ export const zh: Dict = {
     pricesIn: (currency: string) => `以 ${currency} 计价`,
     search: "搜索商品",
     allCategories: "全部商品",
+    categories: "分类",
     signIn: "登录",
   },
   home: {

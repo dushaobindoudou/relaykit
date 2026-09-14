@@ -117,6 +117,7 @@ export function createTestContext(options: TestContextOptions = {}): TestContext
     config: merged,
     db: withBatch as unknown as DaichongContext["db"],
     suppliers,
+    secrets: {},
     raw: sqlite,
     close: () => sqlite.close(),
   };

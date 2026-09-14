@@ -20,10 +20,19 @@ import type { SupplierAdapter } from "@/supplier/types";
  */
 export type Bindings = CloudflareEnv;
 
+export interface DaichongSecrets {
+  /** 自动采购热钱包私钥。空 = 自动付款关闭，一律转人工。 */
+  payoutWalletKey?: string;
+  /** WAF 中继共享密钥。 */
+  relaySecret?: string;
+}
+
 export interface DaichongContext {
   config: DaichongConfig;
   db: DrizzleD1Database<typeof schema>;
   suppliers: Map<string, SupplierAdapter>;
+  /** 出款/中继等资金相关密钥的窄视图。别把整个 env 挂进上下文。 */
+  secrets: DaichongSecrets;
 }
 
 const cache = new WeakMap<object, DaichongContext>();
@@ -69,6 +78,10 @@ export function buildContext(env: Bindings): ContextResult {
     config,
     db: drizzle(env.DB, { schema }),
     suppliers: createSuppliers(config.suppliers),
+    secrets: {
+      ...(env.PAYOUT_WALLET_KEY ? { payoutWalletKey: env.PAYOUT_WALLET_KEY } : {}),
+      ...(env.RELAY_SECRET ? { relaySecret: env.RELAY_SECRET } : {}),
+    },
   };
 
   cache.set(env, context);
