@@ -11,7 +11,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { findProduct } from "@/catalog/sync";
 import { isPlaceholderAddress } from "@/config/schema";
 import { orderEvents, orders, type Order } from "@/db/schema";
-import type { RelayKitContext } from "@/runtime/context";
+import type { DaichongContext } from "@/runtime/context";
 import { transition, type OrderEvent, type OrderStatus } from "@/orders/state";
 import type { PurchaseRequest } from "@/supplier/types";
 import * as ledger from "@/accounts/balance";
@@ -46,7 +46,7 @@ async function hashPassword(password: string): Promise<string> {
  * D1 没有交互式事务，用 batch 保证原子性。
  */
 async function applyEvent(
-  context: RelayKitContext,
+  context: DaichongContext,
   order: Pick<Order, "id" | "status">,
   event: OrderEvent,
   patch: Partial<Order> = {},
@@ -118,7 +118,7 @@ export type CreateOrderResult =
   | { ok: false; error: string };
 
 export async function createOrder(
-  context: RelayKitContext,
+  context: DaichongContext,
   input: CreateOrderInput,
 ): Promise<CreateOrderResult> {
   const { config } = context;
@@ -387,7 +387,7 @@ function couponError(reason: couponService.CouponRejection, detail?: string): st
 // ———————————————————————————— 查询 ————————————————————————————
 
 export async function getOrder(
-  context: RelayKitContext,
+  context: DaichongContext,
   id: string,
 ): Promise<Order | null> {
   const rows = await context.db.select().from(orders).where(eq(orders.id, id)).limit(1);
@@ -414,7 +414,7 @@ export async function verifyOrderPassword(
  *   - 结果不确定时转人工，不重试、不退款。
  */
 export async function fulfillOrder(
-  context: RelayKitContext,
+  context: DaichongContext,
   order: Order,
 ): Promise<{ ok: boolean; status: OrderStatus; message: string }> {
   const adapter = context.suppliers.get(order.supplierId);
@@ -531,7 +531,7 @@ export async function fulfillOrder(
 
 /** 关闭超时未付款的订单，释放它占用的唯一金额。 */
 export async function expireStaleOrders(
-  context: RelayKitContext,
+  context: DaichongContext,
   now = new Date(),
 ): Promise<number> {
   const stale = await context.db
@@ -556,7 +556,7 @@ export async function expireStaleOrders(
 
 /** 链上确认到账。由收款监听调用。 */
 export async function markPaid(
-  context: RelayKitContext,
+  context: DaichongContext,
   order: Order,
   txHash: string,
   amount: string,
@@ -581,7 +581,7 @@ export async function markPaid(
  * 退给谁必须唯一确定，匿名链上付款的退款走人工。
  */
 export async function refundReservationToBalance(
-  context: RelayKitContext,
+  context: DaichongContext,
   orderId: string,
   user: User,
 ): Promise<{ ok: boolean; error?: string }> {
@@ -625,7 +625,7 @@ export async function refundReservationToBalance(
  * 绝不静默覆盖已交付的卡密。
  */
 export async function manualFulfill(
-  context: RelayKitContext,
+  context: DaichongContext,
   orderId: string,
   secret: string,
   leaveMessage?: string,
@@ -656,7 +656,7 @@ export async function manualFulfill(
  * 匿名订单没有余额可退，由调用方提示走线下。
  */
 export async function applyAdminRefund(
-  context: RelayKitContext,
+  context: DaichongContext,
   order: Order,
 ): Promise<{ ok: boolean; error?: string }> {
   if (
@@ -698,7 +698,7 @@ export async function applyAdminRefund(
  * 本地快照：这是「补了货」的信号，真正的库存校验在进货那一步还会做。
  */
 export async function resumeReservations(
-  context: RelayKitContext,
+  context: DaichongContext,
 ): Promise<number> {
   if (context.config.fulfillment.mode !== "auto") return 0;
 
@@ -720,7 +720,7 @@ export async function resumeReservations(
 
 /** 管理视图：按状态列订单，人工发货/退款待办就从这里看。 */
 export async function listOrders(
-  context: RelayKitContext,
+  context: DaichongContext,
   options: { status?: OrderStatus; limit?: number } = {},
 ): Promise<Order[]> {
   const rows = await context.db

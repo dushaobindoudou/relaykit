@@ -1,6 +1,6 @@
 # 部署指南
 
-RelayKit 的目标部署环境是 **Cloudflare Workers + D1 + Cron Triggers**，
+代充 的目标部署环境是 **Cloudflare Workers + D1 + Cron Triggers**，
 全部在免费额度内可用：没有服务器、没有容器、没有需要照看的数据库。
 
 它同时也是一个标准的 Next.js 应用，可以部署到任何 Node 宿主 —— 见文末。
@@ -19,7 +19,7 @@ RelayKit 的目标部署环境是 **Cloudflare Workers + D1 + Cron Triggers**，
 4. 构建并部署
 
 完成后站点跑的是**演示配置**（`mock` 上游、假商品）。要接真实上游，
-在你 fork 的仓库里编辑 `relaykit.config.yaml` 然后推送即可，
+在你 fork 的仓库里编辑 `daichong.config.yaml` 然后推送即可，
 Cloudflare 会自动重新部署。
 
 > 一键部署会自动置备 D1，但 `wrangler.jsonc` 里的 `database_id` 是本仓库
@@ -87,10 +87,10 @@ npx wrangler secret put SUPPLIER_APP_KEY
 ### 4. 写配置
 
 ```bash
-cp relaykit.config.example.yaml relaykit.config.yaml
+cp daichong.config.example.yaml daichong.config.yaml
 ```
 
-按 [配置参考](./configuration.md) 修改。**注意 `relaykit.config.yaml` 在
+按 [配置参考](./configuration.md) 修改。**注意 `daichong.config.yaml` 在
 `.gitignore` 里** —— 它是你的店铺配置，示例文件才是仓库里那份。
 
 如果你 fork 之后想把自己的配置提交进去（这是支持的，密钥都是 `${}` 引用），
@@ -166,7 +166,7 @@ npx wrangler deploy --routes "shop.example.com/*"
 
 或在控制台里 Workers → relaykit → Settings → Domains & Routes 绑定。
 
-绑好之后记得把 `relaykit.config.yaml` 的 `store.baseUrl` 改成新域名并重新
+绑好之后记得把 `daichong.config.yaml` 的 `store.baseUrl` 改成新域名并重新
 部署 —— 订单页的绝对链接和 SEO canonical 都取自它。
 
 ---
@@ -184,7 +184,7 @@ pnpm deploy
 
 ## 七、部署到 Cloudflare 以外
 
-RelayKit 是标准 Next.js 应用，`pnpm build && pnpm start` 可以跑在任何 Node
+代充 是标准 Next.js 应用，`pnpm build && pnpm start` 可以跑在任何 Node
 宿主上。但有两处要自己替换：
 
 1. **数据库**：`src/runtime/context.ts` 里用的是 `drizzle-orm/d1`。

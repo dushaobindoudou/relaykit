@@ -222,10 +222,10 @@ describe("默认值", () => {
 describe("文件加载", () => {
   test("文件不存在时给出可操作的提示而不是裸异常", () => {
     try {
-      loadConfig({ path: "/tmp/definitely-not-here-relaykit.yaml" });
+      loadConfig({ path: "/tmp/definitely-not-here-daichong.yaml" });
       assert.fail("应当抛错");
     } catch (error) {
-      assert.match((error as Error).message, /relaykit\.config\.example\.yaml/);
+      assert.match((error as Error).message, /daichong\.config\.example\.yaml/);
     }
   });
 });

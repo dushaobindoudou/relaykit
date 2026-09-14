@@ -43,7 +43,7 @@ export function LookupForm({ labels }: { labels: LookupLabels }) {
         setError(labels.failed);
         return;
       }
-      sessionStorage.setItem(`relaykit:order:${id}`, password);
+      sessionStorage.setItem(`daichong:order:${id}`, password);
       router.push(`/orders/${encodeURIComponent(id)}`);
     });
   }

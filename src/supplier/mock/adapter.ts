@@ -148,7 +148,7 @@ export class MockAdapter implements SupplierAdapter {
   }
 
   async connect(): Promise<{ shopName: string; balance: Decimal }> {
-    return { shopName: "RelayKit Demo Supplier", balance: this.#balance.toFixed(2) };
+    return { shopName: "代充 Demo Supplier", balance: this.#balance.toFixed(2) };
   }
 
   async listProducts(): Promise<SupplierProduct[]> {

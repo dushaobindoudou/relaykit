@@ -1,4 +1,4 @@
-# RelayKit
+# 代充（Daichong）
 
 **一套可自托管的数字商品转售店面。** 接上任意上游供货商，设定加价，收加密货币，
 自动发货。
@@ -13,7 +13,7 @@
 ## 这是什么
 
 你有一个数字商品的货源 —— 软件授权、订阅兑换码、礼品卡、充值码 —— 想用自己的
-品牌、自己的币种、卖给自己的客户。RelayKit 就是这两件事之间的那套机器：
+品牌、自己的币种、卖给自己的客户。代充 就是这两件事之间的那套机器：
 
 ```
  客户 ──▶ 你的店面 ──────▶ 上游供货商
@@ -55,12 +55,12 @@ pnpm dev
 接真实上游就复制示例配置改：
 
 ```bash
-cp relaykit.config.example.yaml relaykit.config.yaml
+cp daichong.config.example.yaml daichong.config.yaml
 ```
 
 ## 配置
 
-全部在 `relaykit.config.yaml` 里。**结构进文件，密钥进环境变量** —— 任何字符串
+全部在 `daichong.config.yaml` 里。**结构进文件，密钥进环境变量** —— 任何字符串
 都支持 `${VAR}` 引用，所以这份配置文件可以放心提交进仓库、可以直接贴进 issue 求助。
 
 ```yaml
@@ -117,7 +117,7 @@ fulfillment:
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/dushaobindoudou/relaykit)
 
 自动置备 D1 数据库、逐项提示填写 `.dev.vars.example` 里声明的密钥、构建并部署。
-之后在你 fork 的仓库里改 `relaykit.config.yaml` 推送即可。
+之后在你 fork 的仓库里改 `daichong.config.yaml` 推送即可。
 
 ### Cloudflare 手动部署
 
@@ -197,7 +197,7 @@ pnpm deploy
 都是容易做错、且做错了事后很贵的地方。
 
 **「结果不确定」不等于「失败」。** 向上游下单超时时，钱可能扣了也可能没扣。
-RelayKit 绝不自动重试这类订单；它用同一个幂等键重发一次，靠上游的重复检测
+代充 绝不自动重试这类订单；它用同一个幂等键重发一次，靠上游的重复检测
 响应反推第一次究竟发生了什么。四种结局分别处理，其中「已扣款但卡取不回来」
 那一种一律转人工 —— 绝不自动退款，否则就是既赔货又赔钱。
 

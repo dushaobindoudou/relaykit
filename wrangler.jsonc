@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "relaykit",
+  "name": "daichong",
   "main": "worker/entry.ts",
   "compatibility_date": "2025-09-01",
   // nodejs_compat 是必须的：上游签名走 node:crypto 的 MD5，
@@ -44,6 +44,6 @@
   },
 
   "vars": {
-    "RELAYKIT_ENV": "production"
+    "DAICHONG_ENV": "production"
   }
 }

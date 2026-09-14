@@ -1,5 +1,5 @@
 /**
- * 构建期把 relaykit.config.yaml 编译成 TS 模块。
+ * 构建期把 daichong.config.yaml 编译成 TS 模块。
  *
  * 为什么不在运行期读文件：Cloudflare Workers 没有文件系统。把 YAML 预生成成
  * 一个普通模块，运行期 import 即可，Node 与 Workers 走完全相同的代码路径。
@@ -11,8 +11,8 @@
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { parse } from "yaml";
 
-const CONFIG = process.env.RELAYKIT_CONFIG ?? "relaykit.config.yaml";
-const FALLBACK = "relaykit.config.example.yaml";
+const CONFIG = process.env.DAICHONG_CONFIG ?? "daichong.config.yaml";
+const FALLBACK = "daichong.config.example.yaml";
 const OUT = "src/config/generated.ts";
 
 const source = existsSync(CONFIG) ? CONFIG : FALLBACK;

@@ -10,7 +10,7 @@ import { Decimal } from "decimal.js";
 import { and, eq, sql } from "drizzle-orm";
 
 import { balanceTransactions, users } from "@/db/schema";
-import type { RelayKitContext } from "@/runtime/context";
+import type { DaichongContext } from "@/runtime/context";
 
 export type LedgerKind = "topup" | "spend" | "refund" | "adjust";
 
@@ -36,7 +36,7 @@ export type LedgerResult =
  * 这是这个平台上唯一可靠的做法。
  */
 export async function post(
-  context: RelayKitContext,
+  context: DaichongContext,
   entry: LedgerEntry,
 ): Promise<LedgerResult> {
   const rows = await context.db
@@ -88,7 +88,7 @@ export async function post(
 
 /** 带重试的记账。并发冲突是正常现象，不该让用户看到错误。 */
 export async function postWithRetry(
-  context: RelayKitContext,
+  context: DaichongContext,
   entry: LedgerEntry,
   attempts = 4,
 ): Promise<LedgerResult> {
@@ -104,7 +104,7 @@ export async function postWithRetry(
 }
 
 export async function listTransactions(
-  context: RelayKitContext,
+  context: DaichongContext,
   userId: string,
   limit = 50,
 ) {

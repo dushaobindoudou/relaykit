@@ -25,7 +25,7 @@ import {
 import { chainCursors, orders, seenTransfers, topups } from "@/db/schema";
 import { markPaid } from "@/orders/service";
 import type { ChainConfig } from "@/config/schema";
-import type { RelayKitContext } from "@/runtime/context";
+import type { DaichongContext } from "@/runtime/context";
 
 export interface WatchReport {
   chainId: string;
@@ -138,7 +138,7 @@ async function fetchTransfers(
  * 转错金额，或是有人主动往我们地址打款。
  */
 async function settle(
-  context: RelayKitContext,
+  context: DaichongContext,
   chainId: string,
   transfer: Transfer,
   amount: string,
@@ -184,7 +184,7 @@ async function settle(
 }
 
 export async function watchChain(
-  context: RelayKitContext,
+  context: DaichongContext,
   chain: ChainConfig,
 ): Promise<WatchReport> {
   const spec = CHAIN_SPECS[chain.id];
@@ -306,7 +306,7 @@ export async function watchChain(
 }
 
 /** 扫描全部已启用且配置完整的链。 */
-export async function watchAll(context: RelayKitContext): Promise<WatchReport[]> {
+export async function watchAll(context: DaichongContext): Promise<WatchReport[]> {
   const { payableChains } = await import("@/config/schema");
   const reports: WatchReport[] = [];
 
@@ -322,7 +322,7 @@ export async function watchAll(context: RelayKitContext): Promise<WatchReport[]>
 export { fromRawAmount, toRawAmount };
 
 /** 未匹配到订单的入账，供后台人工排查。 */
-export async function listUnmatched(context: RelayKitContext, limit = 50) {
+export async function listUnmatched(context: DaichongContext, limit = 50) {
   return context.db
     .select()
     .from(seenTransfers)

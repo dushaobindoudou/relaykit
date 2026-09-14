@@ -19,7 +19,7 @@ export function AnnouncementPopup({
 
   useEffect(() => {
     try {
-      if (localStorage.getItem("relaykit_notice") !== signature) setOpen(true);
+      if (localStorage.getItem("daichong_notice") !== signature) setOpen(true);
     } catch {
       // 隐私模式下 localStorage 会抛。弹一次总比崩掉好。
       setOpen(true);
@@ -29,7 +29,7 @@ export function AnnouncementPopup({
   function dismiss() {
     setOpen(false);
     try {
-      localStorage.setItem("relaykit_notice", signature);
+      localStorage.setItem("daichong_notice", signature);
     } catch {
       /* 记不住就下次再弹，不影响功能 */
     }

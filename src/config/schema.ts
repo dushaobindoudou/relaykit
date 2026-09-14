@@ -1,5 +1,5 @@
 /**
- * RelayKit 配置契约。
+ * 代充 配置契约。
  *
  * 这个文件是项目对使用者的全部承诺：一份 YAML 就该能把店开起来，不用改代码。
  * 所以 schema 的取舍原则是 —— **能推断的不要求填，但凡涉及钱的就必须显式写**。
@@ -264,7 +264,7 @@ export const configSchema = z.object({
   alerts: alertsSchema,
 });
 
-export type RelayKitConfig = z.infer<typeof configSchema>;
+export type DaichongConfig = z.infer<typeof configSchema>;
 export type SupplierConfig = z.infer<typeof supplierSchema>;
 export type MarkupConfig = z.infer<typeof markupSchema>;
 export type PricingConfig = z.infer<typeof pricingSchema>;
@@ -288,7 +288,7 @@ export function isPlaceholderAddress(address: string): boolean {
 }
 
 /** 已配置好、可以真正收款的链。 */
-export function payableChains(config: RelayKitConfig): ChainConfig[] {
+export function payableChains(config: DaichongConfig): ChainConfig[] {
   return config.payments.chains.filter(
     (chain) => chain.enabled && !isPlaceholderAddress(chain.address),
   );

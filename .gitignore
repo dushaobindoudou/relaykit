@@ -7,12 +7,12 @@ node_modules
 dist
 *.db
 *.db-journal
-relaykit.config.yaml
+daichong.config.yaml
 src/config/generated.ts
 test-results
 playwright-report
 .vitest
 tsconfig.tsbuildinfo
 .wrangler
-relaykit.config.*.yaml
-relaykit.config.upstream.yaml
+daichong.config.*.yaml
+daichong.config.upstream.yaml

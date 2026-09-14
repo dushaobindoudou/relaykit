@@ -9,7 +9,7 @@ import { drizzle, type DrizzleD1Database } from "drizzle-orm/d1";
 
 import { generatedRawConfig } from "@/config/generated";
 import { loadConfig, type EnvSource } from "@/config/load";
-import type { RelayKitConfig } from "@/config/schema";
+import type { DaichongConfig } from "@/config/schema";
 import * as schema from "@/db/schema";
 import { createSuppliers } from "@/supplier/factory";
 import type { SupplierAdapter } from "@/supplier/types";
@@ -20,13 +20,13 @@ import type { SupplierAdapter } from "@/supplier/types";
  */
 export type Bindings = CloudflareEnv;
 
-export interface RelayKitContext {
-  config: RelayKitConfig;
+export interface DaichongContext {
+  config: DaichongConfig;
   db: DrizzleD1Database<typeof schema>;
   suppliers: Map<string, SupplierAdapter>;
 }
 
-const cache = new WeakMap<object, RelayKitContext>();
+const cache = new WeakMap<object, DaichongContext>();
 
 /**
  * 配置解析失败时不抛异常，而是把错误带出来。
@@ -36,7 +36,7 @@ const cache = new WeakMap<object, RelayKitContext>();
  */
 export interface ContextResult {
   ok: boolean;
-  context?: RelayKitContext;
+  context?: DaichongContext;
   error?: string;
 }
 
@@ -44,7 +44,7 @@ export function buildContext(env: Bindings): ContextResult {
   const cached = cache.get(env);
   if (cached) return { ok: true, context: cached };
 
-  let config: RelayKitConfig;
+  let config: DaichongConfig;
   try {
     config = loadConfig({
       raw: structuredClone(generatedRawConfig),
@@ -65,7 +65,7 @@ export function buildContext(env: Bindings): ContextResult {
     };
   }
 
-  const context: RelayKitContext = {
+  const context: DaichongContext = {
     config,
     db: drizzle(env.DB, { schema }),
     suppliers: createSuppliers(config.suppliers),

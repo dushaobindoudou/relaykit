@@ -12,7 +12,7 @@ import * as ledger from "@/accounts/balance";
 import { isPlaceholderAddress } from "@/config/schema";
 import { tagAmount } from "@/payments/tagging";
 import { topups, type Topup, type User } from "@/db/schema";
-import type { RelayKitContext } from "@/runtime/context";
+import type { DaichongContext } from "@/runtime/context";
 
 export type CreateTopupResult =
   | { ok: true; topup: Topup }
@@ -25,7 +25,7 @@ function newTopupId(): string {
 }
 
 export async function createTopup(
-  context: RelayKitContext,
+  context: DaichongContext,
   user: User,
   amount: string,
   chainId: string,
@@ -90,7 +90,7 @@ export async function createTopup(
  * 重复投递会重复加钱。
  */
 export async function creditTopup(
-  context: RelayKitContext,
+  context: DaichongContext,
   topup: Topup,
   txHash: string,
 ): Promise<{ ok: boolean; reason?: string }> {
@@ -123,7 +123,7 @@ export async function creditTopup(
 }
 
 export async function expireStaleTopups(
-  context: RelayKitContext,
+  context: DaichongContext,
   now = new Date(),
 ): Promise<number> {
   const result = await context.db
@@ -141,7 +141,7 @@ export async function expireStaleTopups(
 }
 
 export async function getTopup(
-  context: RelayKitContext,
+  context: DaichongContext,
   id: string,
 ): Promise<Topup | null> {
   const rows = await context.db.select().from(topups).where(eq(topups.id, id)).limit(1);

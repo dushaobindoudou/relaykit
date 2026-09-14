@@ -9,10 +9,10 @@
  * Worker 端只做定价与存储，绝不碰上游 —— 定价规则因此仍集中在配置里一处。
  *
  * 用法：
- *   RELAYKIT_ADMIN_TOKEN=xxx \
+ *   DAICHONG_ADMIN_TOKEN=xxx \
  *   pnpm tsx scripts/sync-upstream.ts \
- *     --config relaykit.config.upstream.yaml \
- *     --site https://relaykit.mergedao.workers.dev
+ *     --config daichong.config.upstream.yaml \
+ *     --site https://daichong.mergedao.workers.dev
  *
  * 配 cron（每 15 分钟）即可让线上目录保持与上游同步。
  */
@@ -72,13 +72,13 @@ function parseArgs(): Args {
     return index >= 0 ? argv[index + 1] : undefined;
   };
 
-  const config = get("config") ?? "relaykit.config.upstream.yaml";
-  const token = get("token") ?? process.env.RELAYKIT_ADMIN_TOKEN ?? "";
+  const config = get("config") ?? "daichong.config.upstream.yaml";
+  const token = get("token") ?? process.env.DAICHONG_ADMIN_TOKEN ?? "";
   let site = get("site") ?? "";
   const noImages = argv.includes("--no-images");
 
   if (!token) {
-    throw new Error("缺少管理令牌：设置 RELAYKIT_ADMIN_TOKEN 或传 --token");
+    throw new Error("缺少管理令牌：设置 DAICHONG_ADMIN_TOKEN 或传 --token");
   }
 
   // site 未显式给出时，从配置的 store.baseUrl 读。

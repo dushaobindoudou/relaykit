@@ -22,7 +22,7 @@ import { syncAll } from "@/catalog/sync";
 import { expireStaleOrders, fulfillOrder } from "@/orders/service";
 import { watchAll } from "@/payments/watcher";
 import { orders } from "@/db/schema";
-import { buildContext, type Bindings, type RelayKitContext } from "@/runtime/context";
+import { buildContext, type Bindings, type DaichongContext } from "@/runtime/context";
 import { eq } from "drizzle-orm";
 
 export {
@@ -103,7 +103,7 @@ async function runScheduled(cron: string, env: Bindings): Promise<void> {
  * 也没有理由为了几百毫秒去冒这个险。单次最多处理 20 张，
  * 剩下的留给下一分钟 —— Cron 的执行时长有限。
  */
-async function fulfillPaidOrders(context: RelayKitContext): Promise<void> {
+async function fulfillPaidOrders(context: DaichongContext): Promise<void> {
   if (context.config.fulfillment.mode !== "auto") return;
 
   const pending = await context.db

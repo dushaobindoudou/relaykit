@@ -10,7 +10,7 @@
 
 import { and, eq, sql } from "drizzle-orm";
 
-import type { RelayKitContext } from "@/runtime/context";
+import type { DaichongContext } from "@/runtime/context";
 import { categories, products, type Category, type Product } from "@/db/schema";
 import { quotePrice, resolveMarkup, type FxSnapshot } from "@/pricing/engine";
 import type { SupplierCategory, SupplierProduct } from "@/supplier/types";
@@ -29,7 +29,7 @@ export interface SyncReport {
 }
 
 /** 从配置构造汇率快照。静态汇率用 updatedAt 作为采集时间。 */
-export function fxFromConfig(context: RelayKitContext): FxSnapshot {
+export function fxFromConfig(context: DaichongContext): FxSnapshot {
   const { fx } = context.config.pricing;
 
   if (fx.source === "static") {
@@ -60,7 +60,7 @@ export interface PrefetchedCatalog {
 }
 
 export async function syncSupplier(
-  context: RelayKitContext,
+  context: DaichongContext,
   supplierId: string,
   now = new Date(),
   prefetched?: PrefetchedCatalog,
@@ -194,7 +194,7 @@ export async function syncSupplier(
  * 而且上游临时抽风漏返商品时，保留行比丢数据安全。
  */
 async function delistMissing(
-  context: RelayKitContext,
+  context: DaichongContext,
   supplierId: string,
   syncedAt: string,
 ): Promise<number> {
@@ -220,7 +220,7 @@ async function delistMissing(
  * 侧栏若照样展示，客户点进去看到的是空列表。
  */
 async function syncCategories(
-  context: RelayKitContext,
+  context: DaichongContext,
   supplierId: string,
   source:
     | { listCategories(): Promise<SupplierCategory[]> }
@@ -292,7 +292,7 @@ function productMeta(product: SupplierProduct) {
   };
 }
 
-async function upsert(context: RelayKitContext, row: ProductRow): Promise<void> {
+async function upsert(context: DaichongContext, row: ProductRow): Promise<void> {
   await context.db
     .insert(products)
     .values(row)
@@ -320,7 +320,7 @@ async function upsert(context: RelayKitContext, row: ProductRow): Promise<void> 
 
 /** 同步全部已配置的上游。 */
 export async function syncAll(
-  context: RelayKitContext,
+  context: DaichongContext,
   now = new Date(),
 ): Promise<SyncReport[]> {
   const reports: SyncReport[] = [];
@@ -333,7 +333,7 @@ export async function syncAll(
 }
 
 /** 店面列表：只取可售的。 */
-export async function listSellable(context: RelayKitContext) {
+export async function listSellable(context: DaichongContext) {
   return context.db.select().from(products).where(eq(products.sellable, true));
 }
 
@@ -342,7 +342,7 @@ export async function listSellable(context: RelayKitContext) {
  *
  * 只返回有可售商品的分类 —— 展示一个点进去是空的分类，比不展示更糟。
  */
-export async function listCategories(context: RelayKitContext): Promise<Category[]> {
+export async function listCategories(context: DaichongContext): Promise<Category[]> {
   const rows = await context.db
     .select()
     .from(categories)
@@ -351,7 +351,7 @@ export async function listCategories(context: RelayKitContext): Promise<Category
 }
 
 export async function findProduct(
-  context: RelayKitContext,
+  context: DaichongContext,
   supplierId: string,
   code: string,
   race: string,
@@ -445,7 +445,7 @@ export interface CatalogFilter {
 }
 
 export async function listCatalog(
-  context: RelayKitContext,
+  context: DaichongContext,
   filter: CatalogFilter = {},
 ): Promise<CatalogEntry[]> {
   const conditions = [eq(products.sellable, true)];
@@ -473,7 +473,7 @@ export async function listCatalog(
 
 /** 商品详情：同一 code 下的所有可售规格。 */
 export async function getCatalogEntry(
-  context: RelayKitContext,
+  context: DaichongContext,
   supplierId: string,
   code: string,
 ): Promise<CatalogEntry | null> {

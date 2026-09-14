@@ -1,4 +1,4 @@
-# RelayKit
+# Daichong
 
 **A self-hostable storefront for reselling digital goods.** Connect an upstream
 supplier, set your markup, take crypto payments, deliver automatically.
@@ -14,7 +14,7 @@ supplier, set your markup, take crypto payments, deliver automatically.
 
 You have a source for digital goods — software licences, subscription codes,
 gift cards, game top-ups — and you want to resell them under your own brand,
-in your own currency, to your own audience. RelayKit is the machinery between
+in your own currency, to your own audience. Daichong is the machinery between
 those two facts:
 
 ```
@@ -62,12 +62,12 @@ http://localhost:3000/api/health for a diagnosis of your setup.
 To point it at a real supplier, copy the example config and edit it:
 
 ```bash
-cp relaykit.config.example.yaml relaykit.config.yaml
+cp daichong.config.example.yaml daichong.config.yaml
 ```
 
 ## Configuration
 
-Everything lives in `relaykit.config.yaml`. Structure goes in the file; secrets
+Everything lives in `daichong.config.yaml`. Structure goes in the file; secrets
 stay in environment variables via `${VAR}` references, so the config file is
 safe to commit and safe to paste into an issue when you need help.
 
@@ -126,7 +126,7 @@ Full reference: **[docs/configuration.md](./docs/configuration.md)**.
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/dushaobindoudou/relaykit)
 
 Provisions the D1 database, prompts for the secrets declared in
-`.dev.vars.example`, and deploys. Then edit `relaykit.config.yaml` in your fork
+`.dev.vars.example`, and deploys. Then edit `daichong.config.yaml` in your fork
 and push.
 
 ### Cloudflare (manual)
@@ -208,7 +208,7 @@ docs/upstream-access.md) — not storefront code.
 A few decisions that are easy to get wrong and expensive to fix later.
 
 **An ambiguous purchase is not a failed purchase.** When the request to the
-supplier times out, the money may or may not have moved. RelayKit never retries
+supplier times out, the money may or may not have moved. Daichong never retries
 such an order automatically; it re-sends once with the same idempotency key and
 uses the supplier's duplicate-detection response to work out what actually
 happened. The four outcomes are handled separately, and the one that means
