@@ -11,6 +11,7 @@ import Link from "next/link";
 
 import type { Category } from "@/db/schema";
 import type { Dict, Locale } from "@/i18n/dictionary";
+import { BrandMark } from "@/components/brand-mark";
 import { LocaleSwitch } from "@/components/locale-switch";
 import { SearchBox } from "@/components/search-box";
 
@@ -41,7 +42,8 @@ export function StoreHeader({
   return (
     <header className="sticky top-0 z-30 border-b border-[var(--line)] bg-[var(--bg)]/95 backdrop-blur">
       <div className="mx-auto flex h-16 max-w-6xl items-center gap-4 px-4 sm:px-6">
-        <Link href="/" className="shrink-0 text-[17px] font-semibold tracking-tight">
+        <Link href="/" className="flex shrink-0 items-center gap-2 text-[17px] font-semibold tracking-tight">
+          <BrandMark />
           {storeName}
         </Link>
 

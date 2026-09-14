@@ -24,6 +24,16 @@
     }
   ],
 
+  // 商品图/分类图的本地存储。上游图床是单点（imgurloss.xqd.cn，暂无防盗链
+  // 但随时可能加），同步脚本把图下载压缩后推到这里，店面只引用自己的
+  // /media/* 路径。首次部署前执行一次：`wrangler r2 bucket create relaykit-media`
+  "r2_buckets": [
+    {
+      "binding": "MEDIA",
+      "bucket_name": "relaykit-media"
+    }
+  ],
+
   // 后台任务不能是常驻进程 —— Workers 没有常驻。
   // 链上收款轮询与上游余额巡检都挂在 Cron 上，打到内部 API 路由。
   "triggers": {

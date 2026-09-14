@@ -125,10 +125,15 @@ fulfillment:
 pnpm install
 npx wrangler d1 create relaykit                      # 把 id 填进 wrangler.jsonc
 npx wrangler d1 migrations apply relaykit --remote
+npx wrangler r2 bucket create relaykit-media         # 商品图本地化存储
 npx wrangler secret put ADMIN_TOKEN                  # openssl rand -hex 24
 npx wrangler secret put POLYGON_ADDRESS
 pnpm deploy
 ```
+
+之后配置同步脚本（`scripts/sync-upstream.ts`）定时跑目录同步；它会顺带把
+商品图下载压缩成 webp 推进 R2，店面全部引用自己的 `/media/*` 图片，
+不再依赖上游图床。品牌图（og 分享卡等）的生成见 **[docs/image-prompts.md](./docs/image-prompts.md)**。
 
 完整流程（含自定义域名与 Cron）见 **[docs/deployment.md](./docs/deployment.md)**。
 
@@ -176,6 +181,8 @@ pnpm deploy
 | 预订（缺货占位、自助退余额） | ✅ 完成，6 个测试 |
 | 管理端 API（订单列表 / 人工发货 / 退款） | ✅ 完成 |
 | WAF 绕行方案（本地同步脚本 → 注入式落库） | ✅ 完成，见 docs/upstream-access.md |
+| 图片本地化（R2 存储 + webp 压缩） | ✅ 完成，店面不热链上游图床 |
+| 品牌资产（logo / favicon / og 分享卡） | ✅ 完成，见 docs/image-prompts.md |
 | **在线客服浮窗** | ✅ 完成（配 `store.supportUrl` 即启用） |
 | **管理后台界面** | ⬜ 未开始（先用 `GET/POST /api/admin/orders`） |
 | **TRON (TRC20) 收款监听** | ⬜ 未开始（明确报错，不静默） |

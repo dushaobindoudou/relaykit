@@ -14,13 +14,26 @@ export async function generateMetadata(): Promise<Metadata> {
     title: { default: store.name, template: `%s · ${store.name}` },
     description: store.description,
     metadataBase: store.baseUrl ? new URL(store.baseUrl) : undefined,
+    icons: {
+      // SVG 是现代浏览器的主 favicon；apple-touch 单独给位图（iOS 不认 SVG）。
+      icon: "/icon.svg",
+      apple: "/apple-touch-icon.png",
+    },
     openGraph: {
       type: "website",
       siteName: store.name,
       title: store.name,
       description: store.description,
+      // 站点级默认分享卡（scripts/generate-brand-assets.ts 生成）。
+      // 商品页会用自己的封面图覆盖它。
+      images: ["/og-default.png"],
     },
-    twitter: { card: "summary_large_image", title: store.name, description: store.description },
+    twitter: {
+      card: "summary_large_image",
+      title: store.name,
+      description: store.description,
+      images: ["/og-default.png"],
+    },
     robots: { index: true, follow: true },
   };
 }

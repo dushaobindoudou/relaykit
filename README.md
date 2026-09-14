@@ -135,6 +135,7 @@ and push.
 pnpm install
 npx wrangler d1 create relaykit                      # paste the id into wrangler.jsonc
 npx wrangler d1 migrations apply relaykit --remote
+npx wrangler r2 bucket create relaykit-media         # product image storage
 npx wrangler secret put ADMIN_TOKEN                  # openssl rand -hex 24
 npx wrangler secret put POLYGON_ADDRESS
 pnpm deploy
@@ -190,6 +191,8 @@ remaining gaps are all on the "full automation" side.
 | Backorders (pay to hold, self-serve refund to balance) | ✅ Done, 6 tests |
 | Admin API (order list / manual fulfillment / refunds) | ✅ Done |
 | WAF workaround (local sync script → injected ingest) | ✅ Done, see docs/upstream-access.md |
+| Image localization (R2 storage + webp compression) | ✅ Done — storefront never hotlinks the upstream image host |
+| Brand assets (logo / favicon / og share card) | ✅ Done, see docs/image-prompts.md |
 | **Support chat widget** | ✅ Done (set `store.supportUrl`) |
 | **Admin console UI** | ⬜ Not started (use `GET/POST /api/admin/orders` meanwhile) |
 | **TRON (TRC20) payment watching** | ⬜ Not started (fails loudly, not silently) |
