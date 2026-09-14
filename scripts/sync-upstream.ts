@@ -19,7 +19,15 @@
 
 import { readFileSync } from "node:fs";
 import { parse as parseYaml } from "yaml";
-import { fetch as undiciFetch, ProxyAgent, type Dispatcher } from "undici";
+// FormData 必须从这里 import：undici 的 fetch 只认**同一个 undici 实例**
+// 产出的 FormData（realm 不匹配时不会设置 multipart 头，服务端直接 400）。
+// Blob 没有这个问题（鸭子类型检测），用全局的即可。
+import {
+  fetch as undiciFetch,
+  FormData,
+  ProxyAgent,
+  type Dispatcher,
+} from "undici";
 import sharp from "sharp";
 
 import { AcgFakaPublicAdapter } from "@/supplier/acgfaka/public";
