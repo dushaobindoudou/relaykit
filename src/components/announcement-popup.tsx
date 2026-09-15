@@ -38,31 +38,35 @@ export function AnnouncementPopup({
   if (!open || items.length === 0) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center">
+    <div id="tokyo-notice-popup" style={{ display: "block" }}>
+      <div className="tokyo-notice-popup-inner">
+        <div className="order-payment-notice__dialog" role="dialog" aria-modal="true">
+          <header>
+            <h3>{items[0]?.title}</h3>
+            <button type="button" aria-label="Close" onClick={dismiss}>
+              &times;
+            </button>
+          </header>
+          <div className="order-payment-notice__content tokyo-notice-body">
+            {items.map((item) => (
+              <section key={item.id}>
+                <div className="rte" dangerouslySetInnerHTML={{ __html: item.body }} />
+              </section>
+            ))}
+          </div>
+          <footer>
+            <button type="button" className="order-payment-notice__confirm" onClick={dismiss}>
+              OK
+            </button>
+          </footer>
+        </div>
+      </div>
       <button
         type="button"
         aria-label="Close"
         onClick={dismiss}
-        className="absolute inset-0 bg-black/45"
+        className="order-payment-notice__backdrop"
       />
-      <div className="relative max-h-[80dvh] w-full max-w-md overflow-y-auto rounded-[var(--radius-card)] border border-[var(--line)] bg-[var(--bg-raised)] p-6 shadow-xl">
-        {items.map((item) => (
-          <section key={item.id} className="mb-5 last:mb-0">
-            <h2 className="text-[16px] font-semibold">{item.title}</h2>
-            <div
-              className="rte mt-2 text-[14px] text-[var(--text-muted)]"
-              dangerouslySetInnerHTML={{ __html: item.body }}
-            />
-          </section>
-        ))}
-        <button
-          type="button"
-          onClick={dismiss}
-          className="mt-4 h-11 w-full rounded-[var(--radius-card)] bg-[var(--accent)] text-[14px] font-medium text-[var(--accent-fg)] hover:bg-[var(--accent-hover)]"
-        >
-          OK
-        </button>
-      </div>
     </div>
   );
 }

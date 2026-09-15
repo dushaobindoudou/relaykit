@@ -36,15 +36,17 @@ export function SearchBox({
   }, [value]);
 
   return (
-    <div className="relative min-w-0 flex-1">
-      <input
-        type="search"
-        value={value}
-        onChange={(event) => setValue(event.target.value)}
-        placeholder={placeholder}
-        aria-label={placeholder}
-        className="h-9 w-full rounded-[var(--radius-card)] border border-[var(--line-strong)] bg-[var(--bg-raised)] px-3 text-[14px] text-[var(--text)] placeholder:text-[var(--text-faint)]"
-      />
+    <div className="tokyo-search-combo">
+      <label className="tokyo-searchbox tokyo-searchbox-combo">
+        <i className="fa-duotone fa-regular fa-magnifying-glass" aria-hidden />
+        <input
+          type="search"
+          value={value}
+          onChange={(event) => setValue(event.target.value)}
+          placeholder={placeholder}
+          aria-label={placeholder}
+        />
+      </label>
     </div>
   );
 }

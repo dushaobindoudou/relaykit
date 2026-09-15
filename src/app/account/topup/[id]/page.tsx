@@ -49,7 +49,15 @@ export default async function TopupDetail({
             chainId={topup.chainId}
             currency={context.config.store.currency}
             endsAt={topup.payWindowEndsAt}
-            copy={t.order}
+            copy={{
+              sendExactly: t.order.sendExactly,
+              left: t.order.left,
+              address: t.order.address,
+              amount: t.order.amount,
+              copy: t.order.copy,
+              copied: t.order.copied,
+              exactDecimals: t.order.exactDecimals,
+            }}
             pollUrl={`/api/topups/${topup.id}`}
             settledRedirect="/account"
           />

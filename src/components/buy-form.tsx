@@ -1,12 +1,14 @@
 "use client";
 
 /**
- * 购买框 —— 结构照搬 Shopify Dawn 的 buy box：
- * 规格选择 → 数量步进 → 价格 → 通栏主按钮。
+ * 购买框 —— 结构照搬源站 Tokyo 主题的商品页表单：
+ * SKU 芯片（带单价）→ 联系方式 → 查询密码 → 数量步进 → 支付方式 pill
+ * → 合计 → 通栏主按钮。提交前弹「下单提示」协议门（与源站一致：
+ * 反诈声明 + 支付建议，勾选确认后才能继续）。
  *
- * 刻意保持**一屏内可完成**：多一步就多一批放弃的人，而这是整个站唯一
- * 产生收入的界面。表单语义严格按规范：label 在 input 上方，错误在下方，
- * 没有拿 placeholder 当 label 的偷懒写法。
+ * 与源站的有意差异：支付方式直接展示在表单里 —— 链上 USDT 之外，
+ * 我们的支付宝/微信人工通道是差异优势，必须在下单前被看见。
+ * 逻辑层（规格/优惠券/余额/人工渠道计价）沿用原有实现。
  */
 
 import { useState, useTransition } from "react";
@@ -51,10 +53,14 @@ export interface BuyLabels {
   payWithBalance: string;
   insufficient: string;
   balanceLabel: string;
+  chainPay: string;
+  noticeTitle: string;
+  noticeBody: string;
+  noticeBodyPay: string;
+  noticeAgree: string;
+  noticeConfirm: string;
+  noticeCancel: string;
 }
-
-const FIELD =
-  "h-11 w-full rounded-[var(--radius-card)] border border-[var(--line-strong)] bg-[var(--bg-raised)] px-3 text-[14px] text-[var(--text)] placeholder:text-[var(--text-faint)]";
 
 export function BuyForm({
   supplierId,
@@ -90,6 +96,8 @@ export function BuyForm({
   const [payMethod, setPayMethod] = useState<string>("chain");
   const [chainId, setChainId] = useState(chains[0]?.id ?? "");
   const [error, setError] = useState<string | null>(null);
+  const [noticeOpen, setNoticeOpen] = useState(false);
+  const [noticeAgreed, setNoticeAgreed] = useState(false);
 
   const [couponInput, setCouponInput] = useState("");
   const [coupon, setCoupon] = useState<{ code: string; discount: string } | null>(null);
@@ -156,6 +164,11 @@ export function BuyForm({
   function submit(event: React.FormEvent) {
     event.preventDefault();
     setError(null);
+    // 协议门：与源站一致，确认过才放行；勾选后本会话内不再打扰。
+    if (!noticeAgreed) {
+      setNoticeOpen(true);
+      return;
+    }
 
     startTransition(async () => {
       const response = await fetch("/api/orders", {
@@ -187,159 +200,162 @@ export function BuyForm({
     });
   }
 
+  const chainPill = (active: boolean) =>
+    `switch-race sku tokyo-sku-option${active ? " is-primary" : ""}`;
+
   return (
-    <form onSubmit={submit}>
-      {variants.length > 1 && (
-        <fieldset>
-          <legend className="eyebrow">{labels.option}</legend>
-          <div className="mt-2.5 flex flex-wrap gap-2">
-            {variants.map((variant) => {
-              const active = variant.race === race;
-              return (
-                <label
-                  key={variant.race}
-                  className={`cursor-pointer rounded-[var(--radius-card)] border px-3 py-2 text-[13px] transition-colors ${
-                    active
-                      ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-fg)]"
-                      : "border-[var(--line-strong)] hover:border-[var(--text)]"
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="race"
-                    className="sr-only"
-                    checked={active}
-                    onChange={() => {
-                      setRace(variant.race);
-                      invalidateCoupon();
-                    }}
-                  />
-                  {variant.race || labels.standard}
-                  <span className="numeric ml-2 opacity-70">{variant.price}</span>
-                </label>
-              );
-            })}
+    <>
+      <form onSubmit={submit} className="vstack gap-3 tokyo-form-stack">
+        {variants.length > 1 && (
+          <div className="tokyo-field">
+            <label className="form-label mb-1">{labels.option}</label>
+            <div className="sku-list">
+              {variants.map((variant) => {
+                const active = variant.race === race;
+                return (
+                  <label key={variant.race} className={chainPill(active)}>
+                    <input
+                      type="radio"
+                      name="race"
+                      className="sr-only"
+                      checked={active}
+                      onChange={() => {
+                        setRace(variant.race);
+                        invalidateCoupon();
+                      }}
+                    />
+                    <span className="tokyo-sku-prices">
+                      <span className="tokyo-sku-current-price">
+                        {variant.price} {currency}
+                      </span>
+                    </span>
+                    <span className="tokyo-sku-name">{variant.race || labels.standard}</span>
+                  </label>
+                );
+              })}
+            </div>
           </div>
-        </fieldset>
-      )}
-
-      {/* 数量步进器：Dawn 的做法，比裸 number input 在触屏上好用得多。 */}
-      <div className="mt-5">
-        <label htmlFor="quantity" className="eyebrow">
-          {labels.quantity}
-        </label>
-        <div className="mt-2.5 inline-flex h-11 items-center rounded-[var(--radius-card)] border border-[var(--line-strong)]">
-          <button
-            type="button"
-            aria-label="-"
-            onClick={() => {
-              setQuantity((value) => Math.max(1, value - 1));
-              invalidateCoupon();
-            }}
-            className="h-full w-11 text-[18px] text-[var(--text-muted)] hover:text-[var(--text)]"
-          >
-            −
-          </button>
-          <input
-            id="quantity"
-            type="number"
-            min={1}
-            max={Math.max(1, Math.min(99, selected?.stock ?? 1))}
-            value={quantity}
-            onChange={(event) => {
-              setQuantity(Math.max(1, Number(event.target.value) || 1));
-              invalidateCoupon();
-            }}
-            className="numeric h-full w-14 border-x border-[var(--line-strong)] bg-transparent text-center text-[14px] [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
-          />
-          <button
-            type="button"
-            aria-label="+"
-            onClick={() => {
-              setQuantity((value) => Math.min(99, value + 1));
-              invalidateCoupon();
-            }}
-            className="h-full w-11 text-[18px] text-[var(--text-muted)] hover:text-[var(--text)]"
-          >
-            +
-          </button>
-        </div>
-      </div>
-
-      <div className="mt-5">
-        <label htmlFor="email" className="eyebrow">
-          {labels.email}
-        </label>
-        <input
-          id="email"
-          type="email"
-          required
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
-          className={`${FIELD} mt-2.5`}
-          placeholder="you@example.com"
-        />
-        <p className="mt-1.5 text-[12px] text-[var(--text-faint)]">{labels.emailHint}</p>
-      </div>
-
-      <div className="mt-4">
-        <label htmlFor="orderPassword" className="eyebrow">
-          {labels.password}
-        </label>
-        <input
-          id="orderPassword"
-          type="password"
-          required
-          minLength={4}
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-          className={`${FIELD} mt-2.5`}
-        />
-        <p className="mt-1.5 text-[12px] text-[var(--text-faint)]">{labels.passwordHint}</p>
-      </div>
-
-      {/* 优惠码 */}
-      <div className="mt-4">
-        <label htmlFor="coupon" className="eyebrow">
-          {labels.couponLabel}
-        </label>
-        <div className="mt-2.5 flex gap-2">
-          <input
-            id="coupon"
-            value={coupon ? coupon.code : couponInput}
-            disabled={Boolean(coupon)}
-            onChange={(event) => setCouponInput(event.target.value)}
-            className={`${FIELD} uppercase disabled:opacity-60`}
-          />
-          <button
-            type="button"
-            onClick={coupon ? () => setCoupon(null) : applyCoupon}
-            disabled={checkingCoupon}
-            className="h-11 shrink-0 rounded-[var(--radius-card)] border border-[var(--line-strong)] px-4 text-[13px] hover:border-[var(--text)] disabled:opacity-50"
-          >
-            {coupon ? labels.couponRemove : labels.couponApply}
-          </button>
-        </div>
-        {couponError && (
-          <p role="alert" className="mt-1.5 text-[12px] text-[var(--danger)]">
-            {couponError}
-          </p>
         )}
-      </div>
 
-      {/* 支付方式：登录后才出现余额选项；手动收款渠道启用时常驻 */}
-      {(balance !== null || chains.length > 1 || (manual !== null && manual.channels.length > 0)) && (
-        <fieldset className="mt-5">
-          <legend className="eyebrow">{labels.payWith}</legend>
-          <div className="mt-2.5 flex flex-wrap gap-2">
+        <div className="tokyo-field">
+          <label className="form-label mb-1" htmlFor="buyEmail">
+            {labels.email}
+          </label>
+          <input
+            id="buyEmail"
+            type="email"
+            required
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            className="form-control"
+            placeholder="you@example.com"
+          />
+          <p className="tokyo-field-hint">{labels.emailHint}</p>
+        </div>
+
+        <div className="tokyo-field">
+          <label className="form-label mb-1" htmlFor="orderPassword">
+            {labels.password}
+          </label>
+          <input
+            id="orderPassword"
+            type="password"
+            required
+            minLength={4}
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            className="form-control"
+          />
+          <p className="tokyo-field-hint">{labels.passwordHint}</p>
+        </div>
+
+        <div className="tokyo-field">
+          <label className="form-label mb-1">{labels.quantity}</label>
+          <div className="input-group qty-group">
+            <button
+              type="button"
+              className="change-num-sub"
+              aria-label="-"
+              onClick={() => {
+                setQuantity((value) => Math.max(1, value - 1));
+                invalidateCoupon();
+              }}
+            >
+              <i className="fa-duotone fa-regular fa-minus" aria-hidden />
+            </button>
+            <input
+              type="number"
+              className="form-control text-center"
+              min={1}
+              max={Math.max(1, Math.min(99, selected?.stock ?? 1))}
+              value={quantity}
+              onChange={(event) => {
+                setQuantity(Math.max(1, Number(event.target.value) || 1));
+                invalidateCoupon();
+              }}
+            />
+            <button
+              type="button"
+              className="change-num-add"
+              aria-label="+"
+              onClick={() => {
+                setQuantity((value) => Math.min(99, value + 1));
+                invalidateCoupon();
+              }}
+            >
+              <i className="fa-duotone fa-regular fa-plus" aria-hidden />
+            </button>
+          </div>
+        </div>
+
+        {/* 优惠码 */}
+        <div className="tokyo-field">
+          <label className="form-label mb-1" htmlFor="coupon">
+            {labels.couponLabel}
+          </label>
+          <div className="d-flex gap-2">
+            <input
+              id="coupon"
+              value={coupon ? coupon.code : couponInput}
+              disabled={Boolean(coupon)}
+              onChange={(event) => setCouponInput(event.target.value)}
+              className="form-control text-uppercase"
+            />
+            <button
+              type="button"
+              onClick={coupon ? () => setCoupon(null) : applyCoupon}
+              disabled={checkingCoupon}
+              className="tokyo-button tokyo-button-light"
+            >
+              <span>{coupon ? labels.couponRemove : labels.couponApply}</span>
+            </button>
+          </div>
+          {couponError && (
+            <p role="alert" className="tokyo-field-error">
+              {couponError}
+            </p>
+          )}
+        </div>
+
+        {/* 支付方式：链上 USDT + 我们的人工通道（差异优势，必须可见） */}
+        <div className="tokyo-field">
+          <label className="form-label mb-1">{labels.payWith}</label>
+          <div className="sku-list">
+            <label className={chainPill(payMethod === "chain")}>
+              <input
+                type="radio"
+                name="payMethod"
+                className="sr-only"
+                checked={payMethod === "chain"}
+                onChange={() => setPayMethod("chain")}
+              />
+              <span className="tokyo-sku-name">
+                <i className="fa-duotone fa-solid fa-bolt me-1" aria-hidden />
+                {labels.chainPay}
+              </span>
+            </label>
             {balance !== null && (
-              <label
-                className={`cursor-pointer rounded-[var(--radius-card)] border px-3 py-2 text-[13px] ${
-                  payMethod === "balance"
-                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-fg)]"
-                    : "border-[var(--line-strong)]"
-                }`}
-              >
+              <label className={chainPill(payMethod === "balance")}>
                 <input
                   type="radio"
                   name="payMethod"
@@ -347,41 +363,14 @@ export function BuyForm({
                   checked={payMethod === "balance"}
                   onChange={() => setPayMethod("balance")}
                 />
-                {labels.payWithBalance}
-                <span className="numeric ml-2 opacity-70">{balance}</span>
+                <span className="tokyo-sku-name">
+                  {labels.payWithBalance}
+                  <span className="tokyo-sku-current-price ms-1">{balance}</span>
+                </span>
               </label>
             )}
-            {chains.map((chain) => (
-              <label
-                key={chain.id}
-                className={`cursor-pointer rounded-[var(--radius-card)] border px-3 py-2 text-[13px] uppercase ${
-                  payMethod === "chain" && chainId === chain.id
-                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-fg)]"
-                    : "border-[var(--line-strong)]"
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="payMethod"
-                  className="sr-only"
-                  checked={payMethod === "chain" && chainId === chain.id}
-                  onChange={() => {
-                    setPayMethod("chain");
-                    setChainId(chain.id);
-                  }}
-                />
-                {chain.id}
-              </label>
-            ))}
             {manual?.channels.map((channel) => (
-              <label
-                key={channel.id}
-                className={`cursor-pointer rounded-[var(--radius-card)] border px-3 py-2 text-[13px] ${
-                  payMethod === channel.id
-                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-fg)]"
-                    : "border-[var(--line-strong)]"
-                }`}
-              >
+              <label key={channel.id} className={chainPill(payMethod === channel.id)}>
                 <input
                   type="radio"
                   name="payMethod"
@@ -389,74 +378,111 @@ export function BuyForm({
                   checked={payMethod === channel.id}
                   onChange={() => setPayMethod(channel.id)}
                 />
-                {channel.label}
+                <span className="tokyo-sku-name">
+                  <i className="fa-duotone fa-solid fa-comments me-1" aria-hidden />
+                  {channel.label}
+                </span>
               </label>
             ))}
           </div>
-          {isManual && manual?.note && (
-            <p className="mt-2 text-[12px] text-[var(--text-muted)]">{manual.note}</p>
-          )}
+          {isManual && manual?.note && <p className="tokyo-field-hint">{manual.note}</p>}
           {payMethod === "balance" && !balanceEnough && (
-            <p className="mt-2 text-[12px] text-[var(--danger)]">{labels.insufficient}</p>
+            <p role="alert" className="tokyo-field-error">
+              {labels.insufficient}
+            </p>
           )}
-        </fieldset>
-      )}
-
-      {/* 价格汇总。有折扣时展示小计与优惠，让客户看得见券生效了。 */}
-      <div className="mt-6 border-t border-[var(--line)] pt-4">
-        {coupon && (
-          <>
-            <div className="flex items-baseline justify-between text-[13px] text-[var(--text-muted)]">
-              <span>{labels.subtotal}</span>
-              <span className="numeric">{subtotal.toFixed(2)}</span>
-            </div>
-            <div className="mt-1 flex items-baseline justify-between text-[13px] text-[var(--pop)]">
-              <span>{labels.discount}</span>
-              <span className="numeric">-{coupon.discount}</span>
-            </div>
-          </>
-        )}
-        <div className="mt-2 flex items-baseline justify-between">
-          <span className="text-[13px] text-[var(--text-muted)]">{labels.total}</span>
-          <span className="numeric text-[24px] font-semibold">
-            {total}
-            <span className="ml-1.5 font-sans text-[13px] font-normal text-[var(--text-faint)]">
-              {currency}
-            </span>
-          </span>
         </div>
-      </div>
 
-      {error && (
-        <p
-          role="alert"
-          className="mt-3 rounded-[var(--radius-card)] bg-[var(--danger-wash)] px-3 py-2 text-[13px] text-[var(--danger)]"
+        {/* 价格汇总。有折扣时展示小计与优惠，让客户看得见券生效了。 */}
+        <div className="tokyo-item-price abacus">
+          <div className="price">
+            {coupon && (
+              <span className="tokyo-price-sub">
+                {labels.subtotal} {subtotal.toFixed(2)} · {labels.discount} -{coupon.discount}
+              </span>
+            )}
+            <span className="tokyo-price-main numeric">
+              {total} <small>{currency}</small>
+            </span>
+          </div>
+        </div>
+
+        {error && (
+          <p role="alert" className="tokyo-field-error">
+            {error}
+          </p>
+        )}
+
+        <button
+          type="submit"
+          disabled={pending || soldOut || !canPay}
+          className="tokyo-button tokyo-button-dark tokyo-button-block"
         >
-          {error}
-        </p>
-      )}
+          {soldOut
+            ? labels.soldOut
+            : !canPay
+              ? labels.notConfigured
+              : pending
+                ? labels.creating
+                : reservable
+                  ? labels.reserveSubmit
+                  : labels.submit}
+        </button>
 
-      <button
-        type="submit"
-        disabled={pending || soldOut || !canPay}
-        className="mt-4 h-12 w-full rounded-[var(--radius-card)] bg-[var(--accent)] text-[14px] font-medium text-[var(--accent-fg)] transition-[background-color,transform] hover:bg-[var(--accent-hover)] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-45"
-      >
-        {soldOut
-          ? labels.soldOut
-          : !canPay
-            ? labels.notConfigured
-            : pending
-              ? labels.creating
-              : reservable
-                ? labels.reserveSubmit
-                : labels.submit}
-      </button>
+        {payMethod === "chain" && <p className="tokyo-field-hint text-center">{labels.window}</p>}
+      </form>
 
-      {payMethod === "chain" && (
-        <p className="mt-3 text-center text-[12px] text-[var(--text-faint)]">
-          {labels.window}
-        </p>
+      {/* 下单提示（协议门）—— 源站 order-payment-notice 的结构与样式。 */}
+      {noticeOpen && (
+        <div className="order-payment-notice" id="order-payment-notice">
+          <div className="order-payment-notice__backdrop" onClick={() => setNoticeOpen(false)} />
+          <section
+            className="order-payment-notice__dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="order-notice-title"
+          >
+            <header>
+              <h3 id="order-notice-title">{labels.noticeTitle}</h3>
+              <button type="button" aria-label={labels.noticeCancel} onClick={() => setNoticeOpen(false)}>
+                &times;
+              </button>
+            </header>
+            <div className="order-payment-notice__content">
+              <p>{labels.noticeBody}</p>
+              <p>{labels.noticeBodyPay}</p>
+            </div>
+            <label className="order-payment-notice__agreement">
+              <input
+                type="checkbox"
+                checked={noticeAgreed}
+                onChange={(event) => setNoticeAgreed(event.target.checked)}
+              />{" "}
+              <span>{labels.noticeAgree}</span>
+            </label>
+            <footer>
+              <button type="button" className="order-payment-notice__cancel" onClick={() => setNoticeOpen(false)}>
+                {labels.noticeCancel}
+              </button>
+              <button
+                type="button"
+                className="order-payment-notice__confirm"
+                disabled={!noticeAgreed}
+                onClick={() => {
+                  setNoticeOpen(false);
+                  // 已经勾选：直接走一遍提交流程（submit 是受控表单提交）。
+                  (document.activeElement as HTMLElement)?.blur();
+                  const form = document.querySelector<HTMLFormElement>("form.tokyo-form-stack");
+                  const requestSubmit = form?.requestSubmit.bind(form);
+                  if (requestSubmit) requestSubmit();
+                }}
+              >
+                {labels.noticeConfirm}
+              </button>
+            </footer>
+          </section>
+        </div>
       )}
-    </form>
+    </>
   );
 }

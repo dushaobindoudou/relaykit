@@ -22,19 +22,15 @@ export function LocaleSwitch({ current }: { current: Locale }) {
   }
 
   return (
-    <div className="flex items-center gap-1 text-[13px]" data-pending={pending}>
+    <div className="tokyo-locale-switch" data-pending={pending}>
       {LOCALES.map((locale, index) => (
         <span key={locale} className="flex items-center gap-1">
-          {index > 0 && <span className="text-[var(--line-strong)]">/</span>}
+          {index > 0 && <span aria-hidden>/</span>}
           <button
             type="button"
             onClick={() => choose(locale)}
             aria-current={locale === current}
-            className={
-              locale === current
-                ? "text-[var(--text)]"
-                : "text-[var(--text-faint)] hover:text-[var(--text)]"
-            }
+            className={locale === current ? "is-current" : ""}
           >
             {LOCALE_LABEL[locale]}
           </button>

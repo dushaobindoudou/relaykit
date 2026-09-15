@@ -1,19 +1,18 @@
 "use client";
 
 /**
- * 订单状态视图。
+ * 订单视图 —— 源站收银台（cashier）的客户端半边。
  *
- * 设计上只服务一个问题：「我的东西什么时候到」。
- * 所以付款指引是整页最大的元素，其余信息一律收进次要层级。
+ * 外壳（checkout-page/checkout-shell/checkout-head）在服务端布局语义里
+ * 由本组件整体输出，因为状态轮询会切换整个身体的形态：
+ *   awaiting_payment → 警告面板 + 三步骤 + 金额/地址/二维码/倒计时
+ *   fulfilled        → 卡密
+ *   其余状态         → 状态说明 + 订单信息
  *
- * 金额与地址用等宽字体并提供一键复制 —— 手抄一个 42 位地址或一个
- * 带四位小数的金额是真实的出错来源，而抄错金额会导致订单匹配不上。
+ * 倒计时与「一键复制」是源站收银台的两个信任锚点，原样保留。
  */
 
 import { useEffect, useState } from "react";
-
-import { Badge, Row } from "@/components/site-chrome";
-import { PaymentInstructions } from "@/components/payment-instructions";
 
 type Status =
   | "draft"
@@ -26,25 +25,6 @@ type Status =
   | "refunded"
   | "needs_review"
   | "expired";
-
-/**
- * 状态 → 视觉色调。
- *
- * 文案由服务端按语言传入（status/order 两组），这里只决定颜色 ——
- * 颜色是与语言无关的，不该重复翻译。
- */
-const TONE_BY_STATUS: Record<Status, "ok" | "warn" | "danger" | "accent" | "neutral"> = {
-  draft: "neutral",
-  awaiting_payment: "accent",
-  paid: "ok",
-  reserved: "accent",
-  procuring: "ok",
-  fulfilled: "ok",
-  procurement_failed: "danger",
-  refunded: "neutral",
-  needs_review: "warn",
-  expired: "neutral",
-};
 
 export type StatusCopy = Record<Status, { label: string; help: string }>;
 
@@ -78,9 +58,59 @@ export interface OrderCopy {
   manualReference: string;
 }
 
+/** 收银台文案：函数型字段已在服务端求值为字符串。 */
+export interface CheckoutCopy {
+  title: string;
+  sub: string;
+  channelLabel: string;
+  networkLabel: string;
+  warningLead: string;
+  warningStrong: string;
+  warningNote1: string;
+  warningNote2: string;
+  deadline: string;
+  deadlineSub: string;
+  step1: string;
+  step2: string;
+  step3: string;
+  quickCopy: string;
+  quickCopyHint: string;
+  amountLabel: string;
+  addressLabel: string;
+  waitingConfirm: string;
+  unitH: string;
+  unitM: string;
+  unitS: string;
+  manualChannelLabel: string;
+}
+
+function useCountdown(endsAt: string): { h: string; m: string; s: string; expired: boolean } {
+  const [remaining, setRemaining] = useState(() =>
+    endsAt ? Math.max(0, new Date(endsAt).getTime() - Date.now()) : 0,
+  );
+
+  useEffect(() => {
+    if (!endsAt) return;
+    const tick = () => setRemaining(Math.max(0, new Date(endsAt).getTime() - Date.now()));
+    tick();
+    const timer = setInterval(tick, 1000);
+    return () => clearInterval(timer);
+  }, [endsAt]);
+
+  const total = Math.floor(remaining / 1000);
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return {
+    h: pad(Math.floor(total / 3600)),
+    m: pad(Math.floor((total % 3600) / 60)),
+    s: pad(total % 60),
+    expired: remaining <= 0,
+  };
+}
+
 export function OrderView(props: {
   copy: OrderCopy;
   statusCopy: StatusCopy;
+  checkout: CheckoutCopy;
   orderId: string;
   status: string;
   productName: string;
@@ -90,6 +120,9 @@ export function OrderView(props: {
   payAmount: string;
   payAddress: string;
   chainId: string;
+  chainLabel: string;
+  qrSvg: string | null;
+  windowMinutes: number;
   payWindowEndsAt: string;
   createdAt: string;
   /** 预订单标记：影响等待补货提示与自助退款入口的展示。 */
@@ -109,6 +142,7 @@ export function OrderView(props: {
   const [secret, setSecret] = useState<string | null>(null);
   const [leaveMessage, setLeaveMessage] = useState<string | null>(null);
   const [refundState, setRefundState] = useState<"idle" | "busy" | "done" | "error">("idle");
+  const [copied, setCopied] = useState<string | null>(null);
 
   // 口令：从 URL 取一次就换进 sessionStorage 并清掉地址栏，
   // 免得客户把带口令的链接截图发出去。
@@ -187,156 +221,293 @@ export function OrderView(props: {
   }, [props.orderId, password, settled]);
 
   const copy = props.copy;
+  const checkout = props.checkout;
   const manualPayment = props.manualPayment ?? null;
   const view = props.statusCopy[status] ?? props.statusCopy.draft;
-  const tone = TONE_BY_STATUS[status] ?? "neutral";
+  const isChainAwaiting = status === "awaiting_payment" && !manualPayment && props.payAmount;
+  const timer = useCountdown(props.payWindowEndsAt);
+
+  async function copyText(label: string, value: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(label);
+      setTimeout(() => setCopied(null), 1500);
+    } catch {
+      // 剪贴板不可用（旧浏览器/权限）：静默失败，文字仍可手选。
+    }
+  }
+
+  const dotClass =
+    status === "fulfilled" || status === "paid" || status === "procuring"
+      ? " is-paid"
+      : status === "expired" || status === "refunded" || status === "procurement_failed"
+        ? " is-expired"
+        : "";
 
   return (
-    <div className="mx-auto max-w-xl">
-      <div className="flex items-center justify-between gap-4">
-        <p className="numeric text-[13px] text-[var(--text-faint)]">
-          {copy.orderNumber} {props.orderId}
-        </p>
-        <Badge tone={tone}>{view.label}</Badge>
-      </div>
-
-      <h1 className="mt-4 text-[24px] font-semibold leading-tight tracking-[-0.015em]">
-        {props.productName}
-      </h1>
-      <p className="mt-2 text-[14px] text-[var(--text-muted)]">{view.help}</p>
-
-      {status === "awaiting_payment" && manualPayment && (
-        <div className="mt-7 rounded-[var(--radius-card)] border border-[var(--line-strong)] p-5">
-          <h2 className="text-[15px] font-semibold text-[var(--text)]">
-            {copy.manualTitle} · {manualPayment.channel}
-          </h2>
-          <p className="mt-1.5 text-[13px] leading-relaxed text-[var(--text-muted)]">
-            {copy.manualPending}
-          </p>
-          <dl className="mt-4 space-y-3 text-[13px]">
-            <div className="flex items-baseline justify-between gap-4">
-              <dt className="text-[var(--text-muted)]">{copy.manualAmount}</dt>
-              <dd className="numeric text-[17px] font-semibold text-[var(--text)]">
-                ¥{manualPayment.amountCny}
-              </dd>
+    <main className="checkout-page">
+      <section className="checkout-shell" id="checkout">
+        <header className="checkout-head">
+          <div className="checkout-head-top">
+            <div>
+              <h1>{isChainAwaiting ? checkout.title : view.label}</h1>
+              <p>
+                {isChainAwaiting ? checkout.sub : view.help}
+              </p>
             </div>
-            <div className="flex items-baseline justify-between gap-4">
-              <dt className="shrink-0 text-[var(--text-muted)]">{copy.manualAccount}</dt>
-              <dd className="numeric text-right font-medium text-[var(--text)]">
-                {manualPayment.account}
-              </dd>
+            {manualPayment ? (
+              <span className="network-badge">{manualPayment.channel}</span>
+            ) : (
+              <span className="network-badge">{props.chainLabel || props.currency}</span>
+            )}
+          </div>
+          <div className="order-meta">
+            <div className="order-number">
+              <b>{copy.orderNumber}</b>
+              <span>{props.orderId}</span>
             </div>
-          </dl>
-          {manualPayment.qrImage && (
-            /* eslint-disable-next-line @next/next/no-img-element */
-            <img
-              src={manualPayment.qrImage}
-              alt={manualPayment.channel}
-              className="mt-4 h-40 w-40 rounded-[var(--radius-card)] border border-[var(--line)]"
-            />
-          )}
-          <p className="mt-4 border-t border-[var(--line)] pt-3 text-[12px] leading-relaxed text-[var(--text-muted)]">
-            {copy.manualReference}
-            <span className="numeric font-semibold text-[var(--text)]">{props.orderId}</span>
-          </p>
-          {manualPayment.instructions && (
-            <p className="mt-1.5 text-[12px] leading-relaxed text-[var(--text-muted)]">
-              {manualPayment.instructions}
-            </p>
-          )}
-        </div>
-      )}
-      {status === "awaiting_payment" && !manualPayment && (
-        <div className="mt-7">
-          <PaymentInstructions
-            amount={props.payAmount}
-            address={props.payAddress}
-            chainId={props.chainId}
-            currency={props.currency}
-            endsAt={props.payWindowEndsAt}
-            copy={copy}
-          />
-        </div>
-      )}
+            <div className="meta-line">
+              <span>{checkout.channelLabel}</span>
+              <span className="meta-pill">
+                {manualPayment ? manualPayment.channel : props.chainId ? "USDT" : props.currency}
+              </span>
+              <span>{checkout.networkLabel}</span>
+              <span className="meta-pill">{props.chainLabel || "—"}</span>
+            </div>
+          </div>
+        </header>
 
-      {status === "reserved" && (
-        <div className="mt-7">
-          {props.canRefundReservation && refundState !== "done" && (
+        <div className="checkout-body">
+          {/* —— 链上待支付：源站收银台主体 —— */}
+          {isChainAwaiting && (
+            <>
+              <section className="warning-panel">
+                <div className="warning-title">
+                  <span className="warning-icon">!</span>
+                  <span>{checkout.warningLead}</span>
+                  <strong>{checkout.warningStrong}</strong>
+                </div>
+                <p className="warning-note">
+                  {checkout.warningNote1}
+                  <br />
+                  {checkout.warningNote2}
+                </p>
+                <div className="divider" />
+                <div className="deadline">{checkout.deadline}</div>
+                <div className="deadline-sub">{checkout.deadlineSub}</div>
+              </section>
+
+              <section className="steps">
+                <div className="step">
+                  <span className="step-no">1</span>
+                  <span>{checkout.step1}</span>
+                </div>
+                <div className="step">
+                  <span className="step-no">2</span>
+                  <span>{checkout.step2}</span>
+                </div>
+                <div className="step">
+                  <span className="step-no">3</span>
+                  <span>{checkout.step3}</span>
+                </div>
+              </section>
+
+              <div className="quick-copy">
+                <b>{checkout.quickCopy}</b>
+                <span>{checkout.quickCopyHint}</span>
+              </div>
+
+              <section className="payment-box">
+                <span className="amount-label">{checkout.amountLabel}</span>
+                <button
+                  type="button"
+                  className="amount copyAmount"
+                  style={{ all: "unset", cursor: "pointer" }}
+                  onClick={() => copyText("amount", props.payAmount)}
+                >
+                  {props.payAmount} <span>{props.currency}</span>
+                </button>
+                <div className="address-label">{checkout.addressLabel}</div>
+                <button
+                  type="button"
+                  className="address-button copyAccount"
+                  onClick={() => copyText("address", props.payAddress)}
+                >
+                  {props.payAddress}
+                </button>
+                <div className="payment-main">
+                  <div className="qr-wrap">
+                    {props.qrSvg && (
+                      <div
+                        role="img"
+                        aria-label={`${checkout.addressLabel} QR`}
+                        dangerouslySetInnerHTML={{ __html: props.qrSvg }}
+                      />
+                    )}
+                  </div>
+                  <div className="timer" aria-label="countdown">
+                    <div className="timer-value">
+                      <div className="time-unit">
+                        <strong>{timer.h}</strong>
+                        <span>{checkout.unitH}</span>
+                      </div>
+                      <i className="colon">:</i>
+                      <div className="time-unit">
+                        <strong>{timer.m}</strong>
+                        <span>{checkout.unitM}</span>
+                      </div>
+                      <i className="colon">:</i>
+                      <div className="time-unit">
+                        <strong>{timer.s}</strong>
+                        <span>{checkout.unitS}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="payment-status">
+                  <span className={`status-dot${dotClass}`} />
+                  <span>
+                    {copied
+                      ? copy.copied
+                      : timer.expired
+                        ? props.statusCopy.expired.label
+                        : checkout.waitingConfirm}
+                  </span>
+                </div>
+              </section>
+            </>
+          )}
+
+          {/* —— 人工转账（支付宝/微信）：我们的差异通道，外壳同语言 —— */}
+          {status === "awaiting_payment" && manualPayment && (
+            <section className="manual-transfer-panel">
+              <div className="warning-title">
+                <span className="warning-icon">✓</span>
+                <span>{copy.manualTitle} · {manualPayment.channel}</span>
+              </div>
+              <p className="warning-note" style={{ color: "#2f6b4f" }}>
+                {copy.manualPending}
+              </p>
+              <div>
+                <span className="amount-label">{copy.manualAmount}</span>
+                <div className="amount">
+                  ¥{manualPayment.amountCny} <span>CNY</span>
+                </div>
+              </div>
+              <div>
+                <div className="address-label">{copy.manualAccount}</div>
+                <button
+                  type="button"
+                  className="address-button"
+                  onClick={() => copyText("account", manualPayment.account)}
+                >
+                  {manualPayment.account}
+                </button>
+              </div>
+              {manualPayment.qrImage && (
+                <div className="qr-wrap">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={manualPayment.qrImage}
+                    alt={manualPayment.channel}
+                    style={{ width: "100%", height: "100%", objectFit: "contain" }}
+                  />
+                </div>
+              )}
+              <div className="payment-status">
+                <span className="status-dot" />
+                <span>
+                  {copy.manualReference}
+                  <b className="numeric">{props.orderId}</b>
+                </span>
+              </div>
+              {manualPayment.instructions && (
+                <p className="deadline-sub">{manualPayment.instructions}</p>
+              )}
+            </section>
+          )}
+
+          {/* —— 卡密交付 —— */}
+          {status === "fulfilled" && secret && (
+            <section className="manual-transfer-panel">
+              <div className="warning-title">
+                <span className="warning-icon">✓</span>
+                <span>{copy.yourCode}</span>
+              </div>
+              <pre className="numeric whitespace-pre-wrap break-all rounded-xl bg-white p-4 text-[14px] leading-relaxed">
+                {secret}
+              </pre>
+              {leaveMessage && (
+                <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-[#60646c]">
+                  {leaveMessage}
+                </p>
+              )}
+            </section>
+          )}
+
+          {status === "fulfilled" && !secret && (
+            <section className="warning-panel">
+              <p className="warning-note">
+                {copy.enterPassword}{" "}
+                <a href="/lookup" className="text-[#0d74ce] underline">
+                  {copy.openLookup}
+                </a>
+              </p>
+            </section>
+          )}
+
+          {/* —— 预订单 —— */}
+          {status === "reserved" && props.canRefundReservation && refundState !== "done" && (
             <button
               type="button"
               onClick={refundReservation}
               disabled={refundState === "busy"}
-              className="h-11 w-full rounded-[var(--radius-card)] border border-[var(--line-strong)] px-4 text-[13px] transition-colors hover:border-[var(--text)] disabled:opacity-50"
+              className="tokyo-button tokyo-button-light tokyo-button-block"
             >
-              {refundState === "busy" ? copy.refunding : copy.refundReservation}
+              <span>{refundState === "busy" ? copy.refunding : copy.refundReservation}</span>
             </button>
           )}
           {refundState === "done" && (
-            <p className="rounded-[var(--radius-card)] bg-[var(--ok-wash)] px-3 py-2.5 text-[13px] text-[var(--ok)]">
-              {copy.refundedToBalance}
-            </p>
+            <p className="tokyo-field-hint">{copy.refundedToBalance}</p>
           )}
           {refundState === "error" && (
-            <p role="alert" className="mt-2 text-[13px] text-[var(--danger)]">
+            <p role="alert" className="tokyo-field-error">
               {copy.refundFailed}
             </p>
           )}
-        </div>
-      )}
 
-      {status === "fulfilled" && secret && (
-        <section className="mt-8 rounded-[var(--radius-card)] border border-[var(--ok)] bg-[var(--ok-wash)] p-5">
-          <h2 className="text-[13px] font-semibold uppercase tracking-[0.08em] text-[var(--ok)]">
-            {copy.yourCode}
-          </h2>
-          <pre className="numeric mt-3 whitespace-pre-wrap break-all rounded-[var(--radius-card)] bg-[var(--bg-raised)] p-4 text-[14px] leading-relaxed">
-            {secret}
-          </pre>
-          {leaveMessage && (
-            <p className="mt-3 whitespace-pre-wrap text-[13px] leading-relaxed text-[var(--text-muted)]">
-              {leaveMessage}
-            </p>
-          )}
-        </section>
-      )}
+          {/* —— 订单信息 —— */}
+          <div className="order-meta" style={{ marginTop: 4 }}>
+            <div className="meta-line">
+              <span>{copy.item}</span>
+              <span className="meta-pill">
+                {props.productName}
+                {props.race ? ` · ${props.race}` : ""}
+              </span>
+              <span>{copy.quantity}</span>
+              <span className="meta-pill numeric">{props.quantity}</span>
+              <span>{copy.total}</span>
+              <span className="meta-pill numeric">
+                {props.payAmount} {props.currency}
+              </span>
+            </div>
+            <div className="meta-line">
+              <span>{copy.placed}</span>
+              <span className="meta-pill numeric">
+                {new Date(props.createdAt).toISOString().slice(0, 16).replace("T", " ")}
+              </span>
+            </div>
+          </div>
 
-      {status === "fulfilled" && !secret && (
-        <section className="mt-8 rounded-[var(--radius-card)] border border-[var(--line)] p-5">
-          <p className="text-[14px]">
-            {copy.enterPassword}
+          <p className="deadline-sub">
+            {copy.bookmark}{" "}
+            <a href="/lookup" className="text-[#0d74ce]">
+              {copy.lookupLink}
+            </a>{" "}
+            {copy.bookmarkTail}
           </p>
-          <a
-            href="/lookup"
-            className="mt-3 inline-block text-[14px] text-[var(--accent)] underline underline-offset-4"
-          >
-            {copy.openLookup}
-          </a>
-        </section>
-      )}
-
-      <dl className="mt-8 border-t border-[var(--line)] pt-4">
-        <Row label={copy.item}>
-          {props.productName}
-          {props.race ? ` · ${props.race}` : ""}
-        </Row>
-        <Row label={copy.quantity} mono>
-          {props.quantity}
-        </Row>
-        <Row label={copy.total} mono>
-          {props.payAmount} {props.currency}
-        </Row>
-        <Row label={copy.placed} mono>
-          {new Date(props.createdAt).toISOString().slice(0, 16).replace("T", " ")}
-        </Row>
-      </dl>
-
-      <p className="mt-6 text-[12px] leading-relaxed text-[var(--text-faint)]">
-        {copy.bookmark}{" "}
-        <a href="/lookup" className="text-[var(--accent)] underline underline-offset-4">
-          {copy.lookupLink}
-        </a>{" "}
-        {copy.bookmarkTail}
-      </p>
-    </div>
+        </div>
+      </section>
+    </main>
   );
 }

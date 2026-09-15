@@ -1,26 +1,20 @@
 /**
  * 非商品页的通用外框（账号、帮助、订单查询）。
  *
- * 与首页共用同一套头部/页脚，保证客户在站内任何位置看到的都是同一个店。
+ * 与首页共用同一个 Tokyo 头部；内容区统一套 checkout-shell 面板
+ * （源站收银台的白卡），保持「同一家店」的观感。源站没有站点页脚，
+ * 这里同样不设。
  */
 
-import {
-  AnnouncementBar,
-  StoreFooter,
-  StoreHeader,
-} from "@/components/storefront";
+import { StoreHeader } from "@/components/storefront";
 import type { Dict, Locale } from "@/i18n/dictionary";
 
 export function PageFrame({
   storeName,
-  currency,
-  supportEmail,
-  supportUrl,
   locale,
   t,
   user,
-  bannerText,
-  width = "max-w-3xl",
+  width = "720px",
   children,
 }: {
   storeName: string;
@@ -37,22 +31,12 @@ export function PageFrame({
 }) {
   return (
     <>
-      {bannerText && <AnnouncementBar text={bannerText} />}
-      <StoreHeader
-        storeName={storeName}
-        locale={locale}
-        t={t}
-        user={user}
-        showSearch={false}
-      />
-      <main className={`mx-auto ${width} px-4 py-10 sm:px-6 sm:py-14`}>{children}</main>
-      <StoreFooter
-        storeName={storeName}
-        currency={currency}
-        supportEmail={supportEmail}
-        supportUrl={supportUrl ?? null}
-        t={t}
-      />
+      <StoreHeader storeName={storeName} locale={locale} t={t} user={user} />
+      <main className="checkout-page">
+        <section className="checkout-shell" style={{ maxWidth: width }}>
+          <div className="checkout-body">{children}</div>
+        </section>
+      </main>
     </>
   );
 }

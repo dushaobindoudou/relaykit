@@ -16,11 +16,7 @@ import { sanitizeDescription } from "@/catalog/sanitize";
 import { isPlaceholderAddress } from "@/config/schema";
 import { manualUnitPrice } from "@/pricing/engine";
 import { BuyForm } from "@/components/buy-form";
-import {
-  AnnouncementBar,
-  StoreFooter,
-  StoreHeader,
-} from "@/components/storefront";
+import { StoreHeader } from "@/components/storefront";
 import { buildContext, type Bindings } from "@/runtime/context";
 import { loadPage, userSummary } from "@/runtime/page-context";
 
@@ -161,14 +157,7 @@ export default async function ProductPage({ params }: Params) {
 
   return (
     <>
-      {banner?.bannerText && <AnnouncementBar text={banner.bannerText} />}
-      <StoreHeader
-        storeName={config.store.name}
-        locale={locale}
-        t={t}
-        user={userSummary(user)}
-        showSearch={false}
-      />
+      <StoreHeader storeName={config.store.name} locale={locale} t={t} user={userSummary(user)} />
 
       <script
         type="application/ld+json"
@@ -176,165 +165,133 @@ export default async function ProductPage({ params }: Params) {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
 
-      <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
-        <nav className="text-[13px] text-[var(--text-faint)]">
-          <Link href="/" className="hover:text-[var(--text)]">
-            {t.product.backToAll}
-          </Link>
-        </nav>
-
-        {/* Dawn 的商品页栅格：媒体与购买框各占一半，桌面端购买框吸顶。 */}
-        <div className="mt-6 grid gap-8 lg:grid-cols-2 lg:gap-14">
-          <div>
-            <div className="aspect-square overflow-hidden rounded-[var(--radius-card)] bg-[var(--bg-sunken)]">
-              {entry.cover ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={entry.cover}
-                  alt={entry.name}
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                <div className="flex h-full w-full items-center justify-center">
-                  <span className="text-[64px] font-semibold text-[var(--line-strong)]">
-                    {entry.name.slice(0, 1).toUpperCase()}
-                  </span>
+      {/* Tokyo 商品页骨架：左封面卡、右标题/徽章/表单 —— 与源站 1:1。 */}
+      <main className="tokyo-main tokyo-page">
+        <section className="tokyo-shell">
+          <section className="panel tokyo-item-panel">
+            <div className="panel-body">
+              <div className="row g-4 align-items-stretch">
+                <div className="col-12 col-lg-6 d-flex">
+                  <div className="tokyo-item-cover-card w-100">
+                    {entry.cover ? (
+                      // 源站用外链原图；放大查看直接开新标签，省一个 lightbox。
+                      <a href={entry.cover} target="_blank" rel="noopener noreferrer">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={entry.cover} alt={entry.name} className="item-cover" />
+                        <span className="tokyo-item-cover-hint">
+                          <i className="fa-duotone fa-regular fa-expand" aria-hidden />
+                          <span>{t.product.viewOriginal}</span>
+                        </span>
+                      </a>
+                    ) : (
+                      <div className="item-cover d-flex align-items-center justify-content-center">
+                        <span className="text-[64px] font-semibold text-[#d9d9e0]">
+                          {entry.name.slice(0, 1).toUpperCase()}
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              )}
+
+                <div className="col-12 col-lg-6 d-flex">
+                  <div className="w-100 tokyo-item-form-wrap">
+                    <h1 className="tokyo-item-inline-title">{entry.name}</h1>
+                    <div className="tokyo-item-badges">
+                      <span
+                        className={`badge-soft ${
+                          entry.deliveryWay === "auto" ? "badge-soft-success" : "badge-soft-warning"
+                        }`}
+                      >
+                        {entry.deliveryWay === "auto"
+                          ? t.product.autoDelivery
+                          : t.product.manualDelivery}
+                      </span>
+                      <span className="badge-soft badge-soft-success item-stock">
+                        {soldOut
+                          ? reservableHere
+                            ? t.product.reservable
+                            : t.product.outOfStock
+                          : (entry.stockText ?? t.product.inStock)}
+                      </span>
+                      {entry.tags.map((tag) => (
+                        <span key={tag} className="badge-soft badge-soft-tag">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+
+                    {reservableHere && (
+                      <p className="tokyo-field-hint" style={{ margin: "8px 0 12px" }}>
+                        {t.product.reservableNote}
+                      </p>
+                    )}
+
+                    <BuyForm
+                      supplierId={entry.supplierId}
+                      code={entry.code}
+                      currency={currency}
+                      variants={variantsWithManual}
+                      chains={payableChains.map((chain) => ({ id: chain.id }))}
+                      manual={manualChannels ? { channels: manualChannels, note: manualNote ?? "" } : null}
+                      balance={user ? user.balance : null}
+                      reservable={reservableHere}
+                      labels={{
+                        option: t.buy.option,
+                        standard: t.buy.standard,
+                        quantity: t.buy.quantity,
+                        email: t.buy.email,
+                        emailHint: t.buy.emailHint,
+                        password: t.buy.password,
+                        passwordHint: t.buy.passwordHint,
+                        payWith: t.buy.payWith,
+                        total: t.buy.total,
+                        submit: t.buy.submit,
+                        creating: t.buy.creating,
+                        soldOut: t.buy.soldOut,
+                        reserveSubmit: t.buy.reserveSubmit,
+                        notConfigured: t.buy.notConfigured,
+                        // 函数型文案必须在服务端求值 —— 函数不能跨 RSC 边界序列化。
+                        window: t.buy.window(config.payments.windowMinutes),
+                        couponLabel: t.coupon.label,
+                        couponApply: t.coupon.apply,
+                        couponRemove: t.coupon.remove,
+                        subtotal: t.coupon.subtotal,
+                        discount: t.coupon.discount,
+                        payWithBalance: t.account.payWithBalance,
+                        insufficient: t.account.insufficient,
+                        balanceLabel: t.account.balance,
+                        chainPay: t.buy.chainPay,
+                        noticeTitle: t.buy.noticeTitle,
+                        noticeBody: t.buy.noticeBody,
+                        noticeBodyPay: t.buy.noticeBodyPay,
+                        noticeAgree: t.buy.noticeAgree,
+                        noticeConfirm: t.buy.noticeConfirm,
+                        noticeCancel: t.buy.noticeCancel,
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
-
-          <div className="lg:sticky lg:top-24 lg:self-start">
-            <h1 className="text-[26px] font-semibold leading-[1.2] tracking-[-0.015em] sm:text-[30px]">
-              {entry.name}
-            </h1>
-
-            <div className="mt-3 flex flex-wrap items-center gap-2 text-[12px]">
-              <span
-                className={
-                  entry.deliveryWay === "auto"
-                    ? "rounded-full bg-[var(--pop-wash)] px-2.5 py-1 font-medium text-[var(--pop)]"
-                    : "rounded-full bg-[var(--warn-wash)] px-2.5 py-1 font-medium text-[var(--warn)]"
-                }
-              >
-                {entry.deliveryWay === "auto"
-                  ? t.product.autoDelivery
-                  : t.product.manualDelivery}
-              </span>
-              <span className="rounded-full bg-[var(--bg-sunken)] px-2.5 py-1 text-[var(--text-muted)]">
-                {soldOut
-                  ? (reservableHere ? t.product.reservable : t.product.outOfStock)
-                  : (entry.stockText ?? t.product.inStock)}
-              </span>
-              {salesLabel && (
-                <span className="numeric rounded-full bg-[var(--bg-sunken)] px-2.5 py-1 text-[var(--text-muted)]">
-                  {t.product.soldCount(salesLabel)}
-                </span>
-              )}
-              {entry.tags.map((tag) => (
-                <span
-                  key={tag}
-                  className="rounded-full bg-[var(--bg-sunken)] px-2.5 py-1 text-[var(--text-muted)]"
-                >
-                  {tag}
-                </span>
-              ))}
-            </div>
-
-            {entry.deliveryWay === "manual" && (
-              <p className="mt-4 rounded-[var(--radius-card)] bg-[var(--warn-wash)] px-3 py-2.5 text-[13px] leading-relaxed text-[var(--warn)]">
-                {t.product.manualNote}
-              </p>
-            )}
-
-            {reservableHere && (
-              <p className="mt-4 rounded-[var(--radius-card)] bg-[var(--accent-wash,rgba(59,130,246,.08))] px-3 py-2.5 text-[13px] leading-relaxed text-[var(--text-muted)]">
-                {t.product.reservableNote}
-              </p>
-            )}
-
-            <div className="mt-6">
-              <BuyForm
-                supplierId={entry.supplierId}
-                code={entry.code}
-                currency={currency}
-                variants={variantsWithManual}
-                chains={payableChains.map((chain) => ({ id: chain.id }))}
-                manual={manualChannels ? { channels: manualChannels, note: manualNote ?? "" } : null}
-                balance={user ? user.balance : null}
-                reservable={reservableHere}
-                labels={{
-                  option: t.buy.option,
-                  standard: t.buy.standard,
-                  quantity: t.buy.quantity,
-                  email: t.buy.email,
-                  emailHint: t.buy.emailHint,
-                  password: t.buy.password,
-                  passwordHint: t.buy.passwordHint,
-                  payWith: t.buy.payWith,
-                  total: t.buy.total,
-                  submit: t.buy.submit,
-                  creating: t.buy.creating,
-                  soldOut: t.buy.soldOut,
-                  reserveSubmit: t.buy.reserveSubmit,
-                  notConfigured: t.buy.notConfigured,
-                  // 函数型文案必须在服务端求值 —— 函数不能跨 RSC 边界序列化。
-                  window: t.buy.window(config.payments.windowMinutes),
-                  couponLabel: t.coupon.label,
-                  couponApply: t.coupon.apply,
-                  couponRemove: t.coupon.remove,
-                  subtotal: t.coupon.subtotal,
-                  discount: t.coupon.discount,
-                  payWithBalance: t.account.payWithBalance,
-                  insufficient: t.account.insufficient,
-                  balanceLabel: t.account.balance,
-                }}
-              />
-            </div>
-
-            <section className="mt-8 border-t border-[var(--line)] pt-6">
-              <p className="eyebrow">{t.product.howItWorks}</p>
-              <ol className="mt-3 grid gap-2.5 text-[13px] leading-relaxed text-[var(--text-muted)]">
-                <li className="flex gap-2.5">
-                  <span className="numeric text-[var(--pop)]">1</span>
-                  {t.product.step1}
-                </li>
-                <li className="flex gap-2.5">
-                  <span className="numeric text-[var(--pop)]">2</span>
-                  {t.product.step2}
-                </li>
-                <li className="flex gap-2.5">
-                  <span className="numeric text-[var(--pop)]">3</span>
-                  {t.product.step3}
-                </li>
-              </ol>
-              <p className="mt-4 text-[12px] leading-relaxed text-[var(--text-faint)]">
-                {t.product.exactAmountNote}
-              </p>
-            </section>
-          </div>
-        </div>
-
-        {cleanDescription && (
-          <section className="mt-14 border-t border-[var(--line)] pt-8">
-            <p className="eyebrow">{t.product.details}</p>
-            {/* 上游富文本已经过 sanitizeDescription 白名单清洗：
-                结构保留、表现剥光、脚本与危险协议丢弃。 */}
-            <div
-              className="rte mt-3 max-w-3xl text-[14px] text-[var(--text-muted)]"
-              dangerouslySetInnerHTML={{ __html: cleanDescription }}
-            />
           </section>
-        )}
-      </main>
 
-      <StoreFooter
-        storeName={config.store.name}
-        currency={currency}
-        supportEmail={config.store.supportEmail ?? null}
-        supportUrl={config.store.supportUrl ?? null}
-        t={t}
-      />
+          {cleanDescription && (
+            <section className="panel tokyo-item-desc-panel">
+              <div className="panel-header">
+                <div className="tokyo-index-heading-copy">
+                  <span className="panel-kicker">Details</span>
+                  <h2 className="panel-title">{t.product.details}</h2>
+                </div>
+              </div>
+              <div className="panel-body">
+                {/* 上游富文本已经过 sanitizeDescription 白名单清洗：
+                    结构保留、表现剥光、脚本与危险协议丢弃。 */}
+                <div className="rte" dangerouslySetInnerHTML={{ __html: cleanDescription }} />
+              </div>
+            </section>
+          )}
+        </section>
+      </main>
     </>
   );
 }

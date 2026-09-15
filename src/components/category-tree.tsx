@@ -1,92 +1,142 @@
 /**
- * 桌面端两级分类树 —— Dawn collection 页的侧栏形态。
+ * 侧栏分类树 —— 结构照搬源站 Tokyo 主题（tokyo-category-node 体系）。
  *
- * 纯文字列表 + 当前项高亮：一级分类粗体，二级缩进小一号；激活项用左侧
- * 描边 + 加粗标记，不做填充色 —— 侧栏是编辑版式，不是按钮组。
- * 「全部商品」固定在树顶；一级分类无论有没有子分类都保持可点击，
- * 点一级等于看该一级下的全部商品（?c= 的展开语义见 page.tsx）。
+ * 源站是 JS 拉取后渲染；我们直接服务端渲染同样的 DOM。展开行为用
+ * 原生 <details>：零 JS、可无障碍操作，展开态与源站的 chevron 旋转一致。
+ * 图标沿用源站的做法：分类有 icon 用 icon，没有就落到站标。
  *
  * 数据来自 loadPage() 已加载的分类快照，这里只做树构建与渲染，不发查询。
- * 上游是平铺分类时所有行都是一级，自然退化成一列粗体链接。
- * 断点由 page.tsx 控制：本组件只出现在 md+，移动端仍是横滑的 CategoryNav。
  */
 
 import Link from "next/link";
 
 import type { Category } from "@/db/schema";
-import type { Dict } from "@/i18n/dictionary";
+
+interface TreeNode {
+  category: Category;
+  children: TreeNode[];
+}
+
+function buildTree(categories: Category[]): TreeNode[] {
+  const byParent = new Map<string, TreeNode[]>();
+  for (const category of categories) {
+    const node: TreeNode = { category, children: [] };
+    const key = category.parentId ?? "";
+    const list = byParent.get(key) ?? [];
+    list.push(node);
+    byParent.set(key, list);
+  }
+  const attach = (node: TreeNode) => {
+    node.children = byParent.get(node.category.externalId) ?? [];
+    node.children.forEach(attach);
+  };
+  const roots = byParent.get("") ?? [];
+  roots.forEach(attach);
+  return roots;
+}
+
+function CategoryRow({
+  node,
+  activeId,
+  depth,
+  fallbackIcon,
+}: {
+  node: TreeNode;
+  activeId?: string | undefined;
+  depth: number;
+  fallbackIcon: string;
+}) {
+  const { category, children } = node;
+  const isActive = category.externalId === activeId;
+  const hasChildren = children.length > 0;
+  const icon = category.icon || fallbackIcon;
+  const href = `/?c=${encodeURIComponent(category.externalId)}`;
+
+  // 与源站一致：行内嵌 --tokyo-depth 缩进变量，子级跟随展开。
+  const rowStyle = { "--tokyo-depth": depth } as React.CSSProperties;
+
+  const copy = (
+    <>
+      <span
+        className="tokyo-category-icon"
+        style={{ backgroundImage: `url('${icon}')` }}
+        aria-hidden
+      />
+      <span className="tokyo-category-copy">
+        <span className="tokyo-category-name">{category.name}</span>
+        <span className="tokyo-category-side">
+          {hasChildren ? (
+            <span className="tokyo-category-toggle" aria-hidden>
+              <i className="fa-duotone fa-regular fa-angle-right" />
+            </span>
+          ) : (
+            <span className="tokyo-category-count">{category.sellableCount}</span>
+          )}
+        </span>
+      </span>
+    </>
+  );
+
+  if (!hasChildren) {
+    return (
+      <div className="tokyo-category-node">
+        <div className="tokyo-category-row" style={rowStyle}>
+          <Link className={`tokyo-category-link${isActive ? " is-active" : ""}`} href={href}>
+            {copy}
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="tokyo-category-node">
+      {/* 有子分类：summary 负责展开，名称区仍是分类链接本身。 */}
+      <details open={depth === 0}>
+        <summary className="tokyo-category-row" style={rowStyle}>
+          <Link className={`tokyo-category-link${isActive ? " is-active" : ""}`} href={href}>
+            {copy}
+          </Link>
+        </summary>
+        <div className="tokyo-category-children">
+          {children.map((child) => (
+            <CategoryRow
+              key={child.category.externalId}
+              node={child}
+              activeId={activeId}
+              depth={depth + 1}
+              fallbackIcon={fallbackIcon}
+            />
+          ))}
+        </div>
+      </details>
+    </div>
+  );
+}
 
 export function CategoryTree({
   categories,
   activeId,
-  t,
+  fallbackIcon = "/icon.svg",
 }: {
   categories: Category[];
   activeId?: string | undefined;
-  t: Dict;
+  fallbackIcon?: string;
 }) {
-  if (categories.length === 0) return null;
-
-  const roots = categories.filter((item) => !item.parentId);
-  const childrenOf = new Map<string, Category[]>();
-  for (const item of categories) {
-    if (!item.parentId) continue;
-    const siblings = childrenOf.get(item.parentId);
-    if (siblings) siblings.push(item);
-    else childrenOf.set(item.parentId, [item]);
-  }
-
-  // 左边框常驻占位（transparent → accent），切换激活项时文字不跳动。
-  const rootLink = (isActive: boolean) =>
-    `block border-l-2 py-1.5 pl-3 text-[14px] leading-snug transition-colors ${
-      isActive
-        ? "border-[var(--accent)] font-semibold text-[var(--text)]"
-        : "border-transparent font-semibold text-[var(--text-muted)] hover:border-[var(--line-strong)] hover:text-[var(--text)]"
-    }`;
-
-  const childLink = (isActive: boolean) =>
-    `block border-l-2 py-1 pl-3 text-[13px] leading-snug transition-colors ${
-      isActive
-        ? "border-[var(--accent)] font-medium text-[var(--text)]"
-        : "border-transparent text-[var(--text-muted)] hover:border-[var(--line-strong)] hover:text-[var(--text)]"
-    }`;
+  const roots = buildTree(categories);
+  if (roots.length === 0) return null;
 
   return (
-    <nav aria-label={t.nav.categories}>
-      <ul>
-        <li>
-          <Link href="/" className={rootLink(!activeId)}>
-            {t.nav.allCategories}
-          </Link>
-        </li>
-        {roots.map((root) => {
-          const children = childrenOf.get(root.externalId) ?? [];
-          return (
-            <li key={root.externalId}>
-              <Link
-                href={`/?c=${encodeURIComponent(root.externalId)}`}
-                className={rootLink(root.externalId === activeId)}
-              >
-                {root.name}
-              </Link>
-              {children.length > 0 && (
-                <ul className="ml-3">
-                  {children.map((child) => (
-                    <li key={child.externalId}>
-                      <Link
-                        href={`/?c=${encodeURIComponent(child.externalId)}`}
-                        className={childLink(child.externalId === activeId)}
-                      >
-                        {child.name}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </li>
-          );
-        })}
-      </ul>
-    </nav>
+    <div className="tokyo-category-tree" id="tokyo-category-tree">
+      {roots.map((node) => (
+        <CategoryRow
+          key={node.category.externalId}
+          node={node}
+          activeId={activeId}
+          depth={0}
+          fallbackIcon={fallbackIcon}
+        />
+      ))}
+    </div>
   );
 }
