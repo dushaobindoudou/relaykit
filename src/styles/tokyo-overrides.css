@@ -604,3 +604,16 @@ html.tokyo-modal-open,html.tokyo-modal-open body{overflow:hidden;}
   max-width: 100%;
   height: auto;
 }
+
+
+/* ============================================================
+ * 6. Bootstrap / Tailwind 类名冲突修复
+ * ============================================================
+ * Tailwind v4 从源码里扫描到 "collapse"（导航折叠容器）后，
+ * 把它当成自己的 visibility 工具类生成 .collapse{visibility:collapse}
+ * —— 那是给表格行用的，落在导航上整个菜单就"隐身"了。
+ * 恢复可见性；显隐仍由 Bootstrap 的 display 规则和 .show 类管理。
+ */
+.collapse {
+  visibility: visible;
+}
