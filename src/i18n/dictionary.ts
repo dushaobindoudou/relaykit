@@ -22,6 +22,12 @@ export const en = {
     notice: "Notices",
     contact: "Contact support",
     register: "Create account",
+    mobileFilter: "Filter",
+    mobileSwipeTitle: "Swipe to browse",
+    mobileSwipeHint: "Swipe",
+    mobileLevel1: "Top level",
+    mobileLevel2: "Sub level",
+    mobileNoSub: "No sub-categories here — tap a top-level category to browse.",
   },
   home: {
     tagline: (currency: string) =>
@@ -50,6 +56,7 @@ export const en = {
     columnPrice: "Price",
     columnStock: "Stock",
     columnAction: "",
+    cellAction: "Action",
     viewOriginal: "View full image",
     from: "from",
     options: (count: number) => `${count} options`,
@@ -276,6 +283,12 @@ export const zh: Dict = {
     notice: "公告",
     contact: "联系客服",
     register: "创建账号",
+    mobileFilter: "筛选分类",
+    mobileSwipeTitle: "滑动选择分类",
+    mobileSwipeHint: "左右滑动",
+    mobileLevel1: "一级分类",
+    mobileLevel2: "二级分类",
+    mobileNoSub: "这个一级分类没有二级分类，点击一级分类即可查看商品。",
   },
   home: {
     tagline: (currency: string) =>
@@ -304,6 +317,7 @@ export const zh: Dict = {
     columnPrice: "价格",
     columnStock: "库存",
     columnAction: "",
+    cellAction: "操作",
     viewOriginal: "查看原图",
     from: "起",
     options: (count: number) => `${count} 个规格`,

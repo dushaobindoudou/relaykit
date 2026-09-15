@@ -10,15 +10,111 @@
 import Link from "next/link";
 
 import { listCatalog, type CatalogEntry } from "@/catalog/sync";
+import type { Category } from "@/db/schema";
 import { isPlaceholderAddress } from "@/config/schema";
 import { AnnouncementPopup } from "@/components/announcement-popup";
 import { CategoryTree } from "@/components/category-tree";
 import { StoreHeader } from "@/components/storefront";
 import { SearchBox } from "@/components/search-box";
+import {
+  MobileFilterTrigger,
+  MobileSidebarBackdrop,
+  MobileSidebarClose,
+} from "@/components/mobile-sidebar";
 import type { Dict } from "@/i18n/dictionary";
 import { loadPage, userSummary } from "@/runtime/page-context";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * 移动端横滑分类轨 —— 源站 ≤767px 的形态（侧栏隐藏，双轨芯片替代）。
+ *
+ * 源站是 JS 点击切换（一级点击 → 二级轨重渲染），我们是纯链接：
+ * 一级芯片带图标，二级芯片带数量/下钻箭头，active 态由 URL 决定。
+ * 链接可爬 —— 移动优先索引下这些分类词全部进入首屏 HTML。
+ */
+function MobileCategoryPanel({
+  categories,
+  activeId,
+  t,
+}: {
+  categories: Category[];
+  activeId: string | undefined;
+  t: Dict;
+}) {
+  const topLevel = categories.filter((item) => !item.parentId);
+  if (topLevel.length === 0) return null;
+
+  // 当前激活分类所属的一级分类（未选分类时默认第一个，与源站 defaultCategory 行为一致）。
+  const active = categories.find((item) => item.externalId === activeId);
+  const primaryId =
+    (active
+      ? [...categories].find((item) => !item.parentId && (item.externalId === activeId || item.externalId === active.parentId))?.externalId
+      : topLevel[0]?.externalId) ?? topLevel[0]?.externalId;
+  const children = categories.filter((item) => item.parentId === primaryId);
+
+  return (
+    <section
+      className="panel tokyo-mobile-category-panel"
+      id="tokyo-mobile-category-panel"
+      aria-label={t.nav.categories}
+    >
+      <div className="tokyo-mobile-category-head">
+        <div>
+          <span className="panel-kicker">Categories</span>
+          <h2 className="panel-title tokyo-mobile-category-title">{t.nav.mobileSwipeTitle}</h2>
+        </div>
+        <span className="tokyo-mobile-category-hint">{t.nav.mobileSwipeHint}</span>
+      </div>
+      <div className="tokyo-mobile-category-body">
+        <div className="tokyo-mobile-category-line">
+          <span className="tokyo-mobile-category-label">{t.nav.mobileLevel1}</span>
+          <div className="tokyo-mobile-category-rail tokyo-mobile-category-primary">
+            {topLevel.map((item) => (
+              <a
+                key={item.externalId}
+                className={`tokyo-mobile-category-chip tokyo-mobile-category-chip-primary${item.externalId === primaryId ? " is-active" : ""}`}
+                href={`/?c=${encodeURIComponent(item.externalId)}`}
+              >
+                <span
+                  className="tokyo-mobile-category-chip-icon"
+                  style={{ backgroundImage: `url('${item.icon || "/icon.svg"}')` }}
+                />
+                <span className="tokyo-mobile-category-chip-text">{item.name}</span>
+              </a>
+            ))}
+          </div>
+        </div>
+        <div className="tokyo-mobile-category-line tokyo-mobile-category-line-secondary">
+          <span className="tokyo-mobile-category-label">{t.nav.mobileLevel2}</span>
+          <div className="tokyo-mobile-category-rail tokyo-mobile-category-secondary">
+            {children.length === 0 ? (
+              <span className="tokyo-mobile-category-loading">{t.nav.mobileNoSub}</span>
+            ) : (
+              children.map((item) => {
+                const grandChildren = categories.some((c) => c.parentId === item.externalId);
+                return (
+                  <a
+                    key={item.externalId}
+                    className={`tokyo-mobile-category-chip tokyo-mobile-category-chip-secondary${item.externalId === activeId ? " is-active" : ""}`}
+                    href={`/?c=${encodeURIComponent(item.externalId)}`}
+                  >
+                    <span className="tokyo-mobile-category-chip-text">{item.name}</span>
+                    {grandChildren ? (
+                      <i className="fa-duotone fa-regular fa-angle-right" aria-hidden />
+                    ) : (
+                      <span className="tokyo-mobile-category-count">{item.sellableCount}</span>
+                    )}
+                  </a>
+                );
+              })
+            )}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
 
 /**
  * 商品行 —— 源站 Index.js 的行模板 1:1（thumb 背景图 + 名称 + pill 标签 +
@@ -90,7 +186,7 @@ function CommodityRow({ entry, t }: { entry: CatalogEntry; t: Dict }) {
             : t.product.outOfStock
           : entry.stockText}
       </td>
-      <td className="tokyo-commodity-action" data-label={t.product.columnAction}>
+      <td className="tokyo-commodity-action" data-label={t.product.cellAction}>
         {action}
       </td>
     </tr>
@@ -174,8 +270,14 @@ export default async function Home({
             </section>
           )}
 
+          {/* ≤767px 手机：横滑分类轨（侧栏在该断点隐藏，源站同款） */}
+          {categories.length > 0 && (
+            <MobileCategoryPanel categories={categories} activeId={categoryId} t={t} />
+          )}
+
           {/* 源站骨架：侧栏树 + 商品目录表。无分类时侧栏隐藏。 */}
           <section className="tokyo-shop-layout">
+            <MobileSidebarBackdrop />
             {categories.length > 0 && (
               <aside className="panel tokyo-sidebar-panel">
                 <div className="panel-header tokyo-index-heading">
@@ -183,6 +285,7 @@ export default async function Home({
                     <span className="panel-kicker">Categories</span>
                     <h2 className="panel-title tokyo-index-panel-title">{t.nav.categories}</h2>
                   </div>
+                  <MobileSidebarClose />
                 </div>
                 <div className="panel-body">
                   <CategoryTree categories={categories} activeId={categoryId} />
@@ -199,6 +302,7 @@ export default async function Home({
                   </h2>
                 </div>
                 <div className="tokyo-catalog-tools">
+                  <MobileFilterTrigger label={t.nav.mobileFilter} />
                   <div className="tokyo-search-combo">
                     <SearchBox placeholder={t.nav.search} defaultValue={search ?? ""} />
                   </div>
