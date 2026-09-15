@@ -12,7 +12,6 @@ import Link from "next/link";
 import { listCatalog, type CatalogEntry } from "@/catalog/sync";
 import type { Category } from "@/db/schema";
 import { isPlaceholderAddress } from "@/config/schema";
-import { AnnouncementPopup } from "@/components/announcement-popup";
 import { CategoryTree } from "@/components/category-tree";
 import { StoreHeader } from "@/components/storefront";
 import { SearchBox } from "@/components/search-box";
@@ -256,6 +255,7 @@ export default async function Home({
         t={t}
         user={userSummary(user)}
         supportUrl={config.store.supportUrl ?? null}
+        popups={popups}
       />
 
       <main className="tokyo-main tokyo-page">
@@ -367,11 +367,6 @@ export default async function Home({
         }}
       />
 
-      {popups.length > 0 && (
-        <AnnouncementPopup
-          items={popups.map((item) => ({ id: item.id, title: item.title, body: item.body }))}
-        />
-      )}
     </>
   );
 }

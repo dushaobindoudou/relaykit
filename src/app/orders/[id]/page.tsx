@@ -42,7 +42,7 @@ export default async function OrderPage({
   const loaded = await loadPage({ categories: false });
   if (!loaded.ok) notFound();
 
-  const { context, locale, t, user } = loaded.page;
+  const { context, locale, t, user, popups } = loaded.page;
   const order = await getOrder(context, id);
   if (!order) notFound();
 
@@ -101,6 +101,7 @@ export default async function OrderPage({
         t={t}
         user={userSummary(user)}
         supportUrl={config.store.supportUrl ?? null}
+        popups={popups}
       />
 
       {/* 服务端只下发非敏感字段。卡密要凭口令另取，绝不在首屏 HTML 里。 */}

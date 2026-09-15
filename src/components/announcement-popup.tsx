@@ -24,6 +24,10 @@ export function AnnouncementPopup({
       // 隐私模式下 localStorage 会抛。弹一次总比崩掉好。
       setOpen(true);
     }
+    // 导航「公告」按钮随时可再打开（tokyo-notice-trigger 同款交互）。
+    const reopen = () => setOpen(true);
+    window.addEventListener("tokyo:open-notice", reopen);
+    return () => window.removeEventListener("tokyo:open-notice", reopen);
   }, [signature]);
 
   function dismiss() {

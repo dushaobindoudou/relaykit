@@ -34,7 +34,7 @@ export default async function AccountPage() {
   const loaded = await loadPage({ categories: false });
   if (!loaded.ok) redirect("/");
 
-  const { context, locale, t, user, banner } = loaded.page;
+  const { context, locale, t, user, banner, popups } = loaded.page;
   if (!user) redirect("/account/login");
 
   const [myOrders, transactions] = await Promise.all([
@@ -51,6 +51,7 @@ export default async function AccountPage() {
 
   return (
     <PageFrame
+      popups={popups}
       storeName={context.config.store.name}
       currency={currency}
       supportEmail={context.config.store.supportEmail ?? null}

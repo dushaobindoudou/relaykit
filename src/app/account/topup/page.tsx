@@ -15,7 +15,7 @@ export default async function TopupPage() {
   const loaded = await loadPage({ categories: false });
   if (!loaded.ok) redirect("/");
 
-  const { context, locale, t, user, banner } = loaded.page;
+  const { context, locale, t, user, banner, popups } = loaded.page;
   if (!user) redirect("/account/login");
 
   const { config } = context;
@@ -32,6 +32,7 @@ export default async function TopupPage() {
 
   return (
     <PageFrame
+      popups={popups}
       storeName={config.store.name}
       currency={config.store.currency}
       supportEmail={config.store.supportEmail ?? null}

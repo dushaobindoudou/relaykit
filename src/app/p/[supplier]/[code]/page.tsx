@@ -68,7 +68,7 @@ export default async function ProductPage({ params }: Params) {
   const loaded = await loadPage({ categories: false });
   if (!loaded.ok) notFound();
 
-  const { context, locale, t, user, banner } = loaded.page;
+  const { context, locale, t, user, banner , popups } = loaded.page;
   const entry = await getCatalogEntry(context, supplier, decodeURIComponent(code));
   if (!entry) notFound();
 
@@ -163,6 +163,7 @@ export default async function ProductPage({ params }: Params) {
         t={t}
         user={userSummary(user)}
         supportUrl={config.store.supportUrl ?? null}
+        popups={popups}
       />
 
       <script

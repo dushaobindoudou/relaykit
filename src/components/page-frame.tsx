@@ -8,6 +8,7 @@
 
 import { StoreHeader } from "@/components/storefront";
 import type { Dict, Locale } from "@/i18n/dictionary";
+import type { Announcement } from "@/db/schema";
 
 export function PageFrame({
   storeName,
@@ -15,6 +16,7 @@ export function PageFrame({
   locale,
   t,
   user,
+  popups = [],
   width = "720px",
   children,
 }: {
@@ -23,6 +25,8 @@ export function PageFrame({
   supportEmail: string | null;
   /** 在线客服地址（可选）。 */
   supportUrl?: string | null;
+  /** 公告弹窗数据（可选，传给头部）。 */
+  popups?: Announcement[];
   locale: Locale;
   t: Dict;
   user: { email: string; balance: string } | null;
@@ -38,6 +42,7 @@ export function PageFrame({
         t={t}
         user={user}
         supportUrl={supportUrl ?? null}
+        popups={popups}
       />
       <main className="checkout-page">
         <section className="checkout-shell" style={{ maxWidth: width }}>

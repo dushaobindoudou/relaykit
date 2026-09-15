@@ -14,8 +14,11 @@
 
 import Link from "next/link";
 
+import { AnnouncementPopup } from "@/components/announcement-popup";
 import { BrandMark } from "@/components/brand-mark";
 import { LocaleSwitch } from "@/components/locale-switch";
+import { NoticeTrigger } from "@/components/notice-trigger";
+import type { Announcement } from "@/db/schema";
 import type { Dict, Locale } from "@/i18n/dictionary";
 
 export function StoreHeader({
@@ -24,6 +27,7 @@ export function StoreHeader({
   t,
   user,
   supportUrl = null,
+  popups = [],
 }: {
   storeName: string;
   locale: Locale;
@@ -31,6 +35,8 @@ export function StoreHeader({
   user: { email: string; balance: string } | null;
   /** 客服地址：直接跳转源站客服（配置驱动）。 */
   supportUrl?: string | null;
+  /** 公告弹窗数据：非空时导航出现「公告」按钮（源站 tokyo-notice-trigger）。 */
+  popups?: Announcement[];
 }) {
   return (
     <header className="tokyo-nav-shell">
@@ -90,6 +96,11 @@ export function StoreHeader({
                     </a>
                   </li>
                 )}
+                {popups.length > 0 && (
+                  <li className="nav-item">
+                    <NoticeTrigger label={t.nav.notice} />
+                  </li>
+                )}
               </ul>
               <div className="tokyo-nav-tools">
                 <div className="tokyo-auth-actions">
@@ -104,7 +115,7 @@ export function StoreHeader({
                         <i className="fa-duotone fa-regular fa-right-to-bracket" aria-hidden />
                         <span>{t.nav.signIn}</span>
                       </Link>
-                      <Link className="tokyo-button tokyo-button-dark" href="/account/login">
+                      <Link className="tokyo-button tokyo-button-dark" href="/account/register">
                         <i className="fa-duotone fa-regular fa-user-plus" aria-hidden />
                         <span>{t.nav.register}</span>
                       </Link>
@@ -117,6 +128,8 @@ export function StoreHeader({
           </div>
         </nav>
       </div>
+      {/* 公告弹窗（源站 #tokyo-notice-popup）：导航公告按钮可随时重开 */}
+      <AnnouncementPopup items={popups} />
     </header>
   );
 }

@@ -59,6 +59,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             视觉基线与源站一致，但不依赖它的 CDN。 */}
         <link rel="stylesheet" href="/vendor/css/bootstrap.min.css" />
         <link rel="stylesheet" href="/vendor/fontawesome/all.min.css" />
+        {/* Bootstrap 折叠菜单 JS：<1200px 导航汉堡开关靠它（源站同样加载） */}
+        <script defer src="/vendor/js/bootstrap.bundle.min.js" />
       </head>
       {/* 头部与侧栏由 Shell 负责 —— 不同页面需要的外框不同（商品页不要侧栏），
           放在 layout 里就没法按页控制。客服浮窗是全站级的，恰恰相反：

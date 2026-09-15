@@ -12,11 +12,12 @@ export default async function LoginPage() {
   const loaded = await loadPage({ categories: false });
   if (!loaded.ok) redirect("/");
 
-  const { context, locale, t, user, banner } = loaded.page;
+  const { context, locale, t, user, banner, popups } = loaded.page;
   if (user) redirect("/account");
 
   return (
     <PageFrame
+      popups={popups}
       storeName={context.config.store.name}
       currency={context.config.store.currency}
       supportEmail={context.config.store.supportEmail ?? null}

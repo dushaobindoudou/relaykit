@@ -22,7 +22,7 @@ export default async function HelpIndex() {
   const loaded = await loadPage({ categories: false });
   if (!loaded.ok) return null;
 
-  const { context, locale, t, user, banner } = loaded.page;
+  const { context, locale, t, user, banner, popups } = loaded.page;
   const list = await context.db
     .select()
     .from(articles)
@@ -31,6 +31,7 @@ export default async function HelpIndex() {
 
   return (
     <PageFrame
+      popups={popups}
       storeName={context.config.store.name}
       currency={context.config.store.currency}
       supportEmail={context.config.store.supportEmail ?? null}
