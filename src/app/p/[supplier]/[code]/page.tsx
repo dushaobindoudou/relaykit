@@ -126,9 +126,10 @@ export default async function ProductPage({ params }: Params) {
   // 富文本进页面前先清洗：结构保留、表现剥光（内联样式/font 标签），
   // 脚本与危险协议一律丢弃。视觉由 .rte 主题接管 —— 上游的碎片样式
   // 直接进来会把 Dawn 的排版打得稀碎。
-  const cleanDescription = entry.description
-    ? sanitizeDescription(entry.description)
-    : null;
+  // 富文本优先（后台抓取的上游详情），退回 API 的纯文本摘要。
+  // 两者都过 sanitizeDescription 白名单：结构保留、脚本与危险协议丢弃。
+  const richSource = (entry.descriptionHtml ?? entry.description ?? "").trim();
+  const cleanDescription = richSource ? sanitizeDescription(entry.descriptionHtml ?? entry.description ?? "") : null;
 
   // Product + Offer 结构化数据。Google 用它在搜索结果里直接显示价格与库存，
   // 对点击率的影响远大于页面上任何视觉设计。
@@ -281,16 +282,13 @@ export default async function ProductPage({ params }: Params) {
           </section>
 
           {cleanDescription && (
-            <section className="panel tokyo-item-desc-panel">
+            <section className="panel tokyo-description-panel">
               <div className="panel-header">
-                <div className="tokyo-index-heading-copy">
-                  <span className="panel-kicker">Details</span>
-                  <h2 className="panel-title">{t.product.details}</h2>
-                </div>
+                <h2 className="panel-title">{t.product.details}</h2>
               </div>
-              <div className="panel-body">
+              <div className="panel-body tokyo-description-body">
                 {/* 上游富文本已经过 sanitizeDescription 白名单清洗：
-                    结构保留、表现剥光、脚本与危险协议丢弃。 */}
+                    结构保留、表现剥光、脚本/iframe/危险协议整体丢弃。 */}
                 <div className="rte" dangerouslySetInnerHTML={{ __html: cleanDescription }} />
               </div>
             </section>

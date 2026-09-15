@@ -23,6 +23,7 @@ const STRUCTURAL_TAGS = new Set([
   "blockquote", "pre", "code",
   "table", "thead", "tbody", "tfoot", "tr", "th", "td",
   "img", "a",
+  "video", "source",
   "strong", "b", "em", "i", "u", "s", "del", "sub", "sup", "mark",
   "figure", "figcaption",
 ]);
@@ -68,6 +69,21 @@ function openTag(tag: string, rawAttrs: string, selfClosing: boolean): string {
       return "";
     }
     return `<a href="${escapeHtml(safe)}" rel="noopener noreferrer nofollow">`;
+  }
+
+  if (tag === "video" || tag === "source") {
+    const src = attrValue(rawAttrs, "src");
+    const safe = src ? safeUrl(src) : null;
+    if (tag === "source" && !safe) return "";
+    if (tag === "video") {
+      // 无安全来源的视频壳照样保留（source 子标签会兜底），但 poster 必须安全。
+      const poster = attrValue(rawAttrs, "poster");
+      const safePoster = poster ? safeUrl(poster) : null;
+      const attrs = [` src="${safe ? escapeHtml(safe) : ""}"`, " controls"];
+      if (safePoster) attrs.push(` poster="${escapeHtml(safePoster)}"`);
+      return `<video${attrs.join("")}>`;
+    }
+    return `<source src="${escapeHtml(safe ?? "")}" type="video/mp4">`;
   }
 
   if (tag === "img") {

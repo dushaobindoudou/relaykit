@@ -352,7 +352,7 @@ export const zh: Dict = {
     step3: "订单页自动出现卡密",
     exactAmountNote:
       "请转入结算页显示的准确金额。末尾几位小数用于识别你的订单，转整数会导致无法自动匹配。",
-    details: "商品详情",
+    details: "宝贝详情",
   },
   buy: {
     option: "规格",

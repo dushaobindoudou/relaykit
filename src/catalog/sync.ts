@@ -409,6 +409,8 @@ export interface CatalogEntry {
   deliveryWay: "auto" | "manual";
   stockText: string | null;
   description: string | null;
+  /** 详情页富文本（后台抓取清洗入库；cron 不覆盖）。 */
+  descriptionHtml: string | null;
   /** 上游显示的累计销量；null 表示上游没给。 */
   salesCount: number | null;
   /** 缺货时是否可预订。 */
@@ -447,6 +449,7 @@ export function groupByProduct(rows: Product[]): CatalogEntry[] {
         deliveryWay: row.deliveryWay === "manual" ? "manual" : "auto",
         stockText: row.stockText,
         description: row.description,
+        descriptionHtml: row.descriptionHtml,
         salesCount: row.salesCount,
         reservable: row.reservable,
         tags: row.tags ? row.tags.split(",").filter(Boolean) : [],

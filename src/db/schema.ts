@@ -229,6 +229,8 @@ export const products = sqliteTable(
     stockText: text("stock_text"),
     /** 商品详情富文本。 */
     description: text("description"),
+    /** 详情页富文本（上游 item 页抓取 + 白名单清洗）；cron 同步不覆盖。 */
+    descriptionHtml: text("description_html"),
     /**
      * 上游显示的历史销量（order_sold）。是**上游的**累计销量，不是本店
      * 订单数 —— 展示时如实标注，绝不与本地数据混算。为 null 时 UI 不显示。
