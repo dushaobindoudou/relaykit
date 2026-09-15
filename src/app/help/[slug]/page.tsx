@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { and, eq } from "drizzle-orm";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 
-import { PageFrame } from "@/components/page-frame";
+import { StoreHeader } from "@/components/storefront";
 import { articles } from "@/db/schema";
 import { buildContext, type Bindings } from "@/runtime/context";
 import { loadPage, userSummary } from "@/runtime/page-context";
@@ -57,34 +57,45 @@ export default async function ArticlePage({
   const article = await findArticle(slug);
   if (!article) notFound();
 
-  const { context, locale, t, user, banner } = loaded.page;
+  const { context, locale, t, user, popups } = loaded.page;
 
   return (
-    <PageFrame
-      storeName={context.config.store.name}
-      currency={context.config.store.currency}
-      supportEmail={context.config.store.supportEmail ?? null}
-      locale={locale}
-      t={t}
-      user={userSummary(user)}
-      bannerText={banner?.bannerText ?? null}
-      width="max-w-2xl"
-    >
-      <nav className="text-[13px] text-[var(--text-faint)]">
-        <Link href="/help" className="hover:text-[var(--text)]">
-          {t.help.back}
-        </Link>
-      </nav>
-
-      <h1 className="mt-5 text-[28px] font-semibold leading-[1.2] tracking-[-0.015em]">
-        {article.title}
-      </h1>
-
-      {/* 文章正文由店主在后台撰写，是站内唯一不受上游限制的可索引内容。 */}
-      <div
-        className="rte mt-6 text-[15px] leading-relaxed"
-        dangerouslySetInnerHTML={{ __html: article.body }}
+    <>
+      <StoreHeader
+        storeName={context.config.store.name}
+        locale={locale}
+        t={t}
+        user={userSummary(user)}
+        supportUrl={context.config.store.supportUrl ?? null}
+        popups={popups}
       />
-    </PageFrame>
+
+      {/* 源站文章详情（help-article-detail）同款 */}
+      <main className="help-center-page">
+        <div className="help-center-shell">
+          <div className="help-center-breadcrumb">
+            <Link href="/">{t.help.home}</Link>
+            <span>/</span>
+            <Link href="/help">{t.help.title}</Link>
+            <span>/</span>
+            <strong>{article.title}</strong>
+          </div>
+
+          <article className="help-article-detail">
+            <header>
+              <h1>{article.title}</h1>
+              <div>
+                {new Date(article.updatedAt).toISOString().slice(0, 16).replace("T", " ")}
+              </div>
+            </header>
+            {/* 文章正文由店主在后台撰写，是站内唯一不受上游限制的可索引内容。 */}
+            <div
+              className="help-article-content rte"
+              dangerouslySetInnerHTML={{ __html: article.body }}
+            />
+          </article>
+        </div>
+      </main>
+    </>
   );
 }

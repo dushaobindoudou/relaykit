@@ -29,6 +29,12 @@ export const en = {
     mobileLevel2: "Sub level",
     mobileNoSub: "No sub-categories here — tap a top-level category to browse.",
   },
+  noticePopup: {
+    title: "Announcement",
+    cancel: "Cancel",
+    confirm: "Got it",
+    tip: 'Tap "Got it" and it stays hidden for 1 hour.',
+  },
   home: {
     tagline: (currency: string) =>
       `Pay in ${currency}. Your code is delivered automatically once payment confirms on-chain.`,
@@ -254,6 +260,9 @@ export const en = {
     discount: "Discount",
   },
   help: {
+    home: "Home",
+    readArticle: "Read article",
+    pinned: "Pinned",
     title: "Help center",
     intro: "Guides, payment questions, and how delivery works.",
     empty: "No articles yet.",
@@ -289,6 +298,12 @@ export const zh: Dict = {
     mobileLevel1: "一级分类",
     mobileLevel2: "二级分类",
     mobileNoSub: "这个一级分类没有二级分类，点击一级分类即可查看商品。",
+  },
+  noticePopup: {
+    title: "公告",
+    cancel: "取消",
+    confirm: "我已阅读",
+    tip: "点击「我已阅读」后，1 小时内不再弹出。",
   },
   home: {
     tagline: (currency: string) =>
@@ -510,6 +525,9 @@ export const zh: Dict = {
     discount: "优惠",
   },
   help: {
+    home: "首页",
+    readArticle: "查看文章",
+    pinned: "置顶",
     title: "帮助中心",
     intro: "使用教程、付款说明与发货流程。",
     empty: "暂无文章",

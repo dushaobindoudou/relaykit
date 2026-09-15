@@ -129,7 +129,7 @@ export function StoreHeader({
         </nav>
       </div>
       {/* 公告弹窗（源站 #tokyo-notice-popup）：导航公告按钮可随时重开 */}
-      <AnnouncementPopup items={popups} />
+      <AnnouncementPopup items={popups} copy={t.noticePopup} />
     </header>
   );
 }

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { desc, eq } from "drizzle-orm";
 
-import { PageFrame } from "@/components/page-frame";
+import { StoreHeader } from "@/components/storefront";
 import { articles } from "@/db/schema";
 import { loadPage, userSummary } from "@/runtime/page-context";
 import { getStoreMeta } from "@/runtime/store-meta";
@@ -29,38 +29,67 @@ export default async function HelpIndex() {
     .where(eq(articles.published, true))
     .orderBy(desc(articles.pinned), articles.sort);
 
-  return (
-    <PageFrame
-      popups={popups}
-      storeName={context.config.store.name}
-      currency={context.config.store.currency}
-      supportEmail={context.config.store.supportEmail ?? null}
-      locale={locale}
-      t={t}
-      user={userSummary(user)}
-      bannerText={banner?.bannerText ?? null}
-    >
-      <h1 className="text-[26px] font-semibold tracking-[-0.015em]">{t.help.title}</h1>
-      <p className="mt-2 text-[14px] text-[var(--text-muted)]">{t.help.intro}</p>
+  const fmt = (value: Date | string) =>
+    new Date(value).toISOString().slice(0, 16).replace("T", " ");
 
-      {list.length === 0 ? (
-        <p className="mt-8 text-[14px] text-[var(--text-muted)]">{t.help.empty}</p>
-      ) : (
-        <ul className="mt-8 divide-y divide-[var(--line)] border-y border-[var(--line)]">
-          {list.map((article) => (
-            <li key={article.slug}>
-              <Link href={`/help/${article.slug}`} className="block py-5 hover:opacity-70">
-                <h2 className="text-[16px] font-medium">{article.title}</h2>
-                {article.summary && (
-                  <p className="mt-1 text-[13px] leading-relaxed text-[var(--text-muted)]">
-                    {article.summary}
-                  </p>
-                )}
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
-    </PageFrame>
+  return (
+    <>
+      <StoreHeader
+        storeName={context.config.store.name}
+        locale={locale}
+        t={t}
+        user={userSummary(user)}
+        supportUrl={context.config.store.supportUrl ?? null}
+        popups={popups}
+      />
+
+      {/* 源站帮助中心（help-center-page）同款：面包屑 + hero + 文章行 */}
+      <main className="help-center-page">
+        <div className="help-center-shell">
+          <div className="help-center-breadcrumb">
+            <Link href="/">{t.help.home}</Link>
+            <span>/</span>
+            <strong>{t.help.title}</strong>
+          </div>
+
+          <section className="help-center-hero">
+            <div>
+              <span className="help-eyebrow">HELP CENTER</span>
+              <h1>{t.help.title}</h1>
+              <p>{t.help.intro}</p>
+            </div>
+            <i className="fa-duotone fa-regular fa-circle-question" aria-hidden />
+          </section>
+
+          <section className="help-article-list">
+            {list.length === 0 ? (
+              <div className="help-empty">{t.help.empty}</div>
+            ) : (
+              list.map((article) => (
+                <article
+                  className={`help-article-row${article.pinned ? " is-top" : ""}`}
+                  key={article.slug}
+                >
+                  <div className="help-article-copy">
+                    <div className="help-article-title-line">
+                      <h2>{article.title}</h2>
+                      {article.pinned && (
+                        <span className="help-top-badge">{t.help.pinned}</span>
+                      )}
+                    </div>
+                    {article.summary && <p>{article.summary}</p>}
+                    <time>{fmt(article.updatedAt)}</time>
+                  </div>
+                  <Link className="help-read-button" href={`/help/${article.slug}`}>
+                    {t.help.readArticle}{" "}
+                    <i className="fa-duotone fa-regular fa-arrow-right" aria-hidden />
+                  </Link>
+                </article>
+              ))
+            )}
+          </section>
+        </div>
+      </main>
+    </>
   );
 }
