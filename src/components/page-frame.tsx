@@ -11,6 +11,7 @@ import type { Dict, Locale } from "@/i18n/dictionary";
 
 export function PageFrame({
   storeName,
+  supportUrl,
   locale,
   t,
   user,
@@ -31,7 +32,13 @@ export function PageFrame({
 }) {
   return (
     <>
-      <StoreHeader storeName={storeName} locale={locale} t={t} user={user} />
+      <StoreHeader
+        storeName={storeName}
+        locale={locale}
+        t={t}
+        user={user}
+        supportUrl={supportUrl ?? null}
+      />
       <main className="checkout-page">
         <section className="checkout-shell" style={{ maxWidth: width }}>
           <div className="checkout-body">{children}</div>

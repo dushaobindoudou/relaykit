@@ -157,7 +157,13 @@ export default async function ProductPage({ params }: Params) {
 
   return (
     <>
-      <StoreHeader storeName={config.store.name} locale={locale} t={t} user={userSummary(user)} />
+      <StoreHeader
+        storeName={config.store.name}
+        locale={locale}
+        t={t}
+        user={userSummary(user)}
+        supportUrl={config.store.supportUrl ?? null}
+      />
 
       <script
         type="application/ld+json"

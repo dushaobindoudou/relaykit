@@ -23,11 +23,14 @@ export function StoreHeader({
   locale,
   t,
   user,
+  supportUrl = null,
 }: {
   storeName: string;
   locale: Locale;
   t: Dict;
   user: { email: string; balance: string } | null;
+  /** 客服地址：直接跳转源站客服（配置驱动）。 */
+  supportUrl?: string | null;
 }) {
   return (
     <header className="tokyo-nav-shell">
@@ -74,6 +77,19 @@ export function StoreHeader({
                     <span>{t.nav.help}</span>
                   </Link>
                 </li>
+                {supportUrl && (
+                  <li className="nav-item">
+                    <a
+                      className="nav-link tokyo-nav-link"
+                      href={supportUrl}
+                      target="_blank"
+                      rel="noopener"
+                    >
+                      <i className="fa fa-headphones fa-duotone fa-regular fa-headphones" aria-hidden />
+                      <span>{t.nav.contact}</span>
+                    </a>
+                  </li>
+                )}
               </ul>
               <div className="tokyo-nav-tools">
                 <div className="tokyo-auth-actions">

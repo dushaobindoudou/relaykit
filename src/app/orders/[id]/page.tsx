@@ -95,7 +95,13 @@ export default async function OrderPage({
 
   return (
     <>
-      <StoreHeader storeName={config.store.name} locale={locale} t={t} user={userSummary(user)} />
+      <StoreHeader
+        storeName={config.store.name}
+        locale={locale}
+        t={t}
+        user={userSummary(user)}
+        supportUrl={config.store.supportUrl ?? null}
+      />
 
       {/* 服务端只下发非敏感字段。卡密要凭口令另取，绝不在首屏 HTML 里。 */}
       <OrderView

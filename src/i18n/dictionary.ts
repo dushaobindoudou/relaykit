@@ -20,6 +20,7 @@ export const en = {
     signIn: "Sign in",
     shop: "Shop",
     notice: "Notices",
+    contact: "Contact support",
     register: "Create account",
   },
   home: {
@@ -273,6 +274,7 @@ export const zh: Dict = {
     signIn: "登录",
     shop: "购物",
     notice: "公告",
+    contact: "联系客服",
     register: "创建账号",
   },
   home: {

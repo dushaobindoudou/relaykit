@@ -154,7 +154,13 @@ export default async function Home({
 
   return (
     <>
-      <StoreHeader storeName={config.store.name} locale={locale} t={t} user={userSummary(user)} />
+      <StoreHeader
+        storeName={config.store.name}
+        locale={locale}
+        t={t}
+        user={userSummary(user)}
+        supportUrl={config.store.supportUrl ?? null}
+      />
 
       <main className="tokyo-main tokyo-page">
         <section className="tokyo-shell">
