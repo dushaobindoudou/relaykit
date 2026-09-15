@@ -655,3 +655,16 @@ html.tokyo-modal-open,html.tokyo-modal-open body{overflow:hidden;}
   .tokyo-notice-actions{padding:10px 16px 0}
   .tokyo-notice-tip{padding:8px 16px 14px}
 }
+
+
+/* ============================================================
+ * 9. Bootstrap 链接下划线兜底
+ *    vendor/bootstrap.min.css 在所有 Next 样式之后加载，它对每个
+ *    <a> 的 text-decoration:underline 会漏到用 <a> 冒充的按钮和
+ *    图标上（登录/创建账号/查看文章/分类链接…源站靠自己的公共
+ *    CSS 兜底，那份我们没移植）。提一级特异性关掉；真需要下划线
+ *    的地方用 Tailwind 的 underline 工具类（类特异性更高，仍生效）。
+ * ============================================================ */
+html a {
+  text-decoration: none;
+}
