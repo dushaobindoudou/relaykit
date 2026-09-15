@@ -14,6 +14,7 @@ import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { findProduct, fxFromConfig, getCatalogEntry } from "@/catalog/sync";
 import { sanitizeDescription } from "@/catalog/sanitize";
 import { isPlaceholderAddress } from "@/config/schema";
+import { loadManualOverrides, resolveManualConfig } from "@/payments/manual-channels";
 import { manualUnitPrice } from "@/pricing/engine";
 import { BuyForm } from "@/components/buy-form";
 import { StoreHeader } from "@/components/storefront";
@@ -81,10 +82,7 @@ export default async function ProductPage({ params }: Params) {
 
   // 手动收款渠道（支付宝/微信转账）：单价按成本口径重算（如 30%），
   // 与 createOrder 的算法同源 —— 页面展示价必须等于下单结算价。
-  const manualConfig =
-    config.payments.manual?.enabled && config.payments.manual.channels.length > 0
-      ? config.payments.manual
-      : null;
+  const manualConfig = resolveManualConfig(config, await loadManualOverrides(context.db));
   const manualChannels = manualConfig?.channels.map((channel) => ({
     id: channel.id,
     label: channel.label,

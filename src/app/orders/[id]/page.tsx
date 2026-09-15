@@ -18,6 +18,7 @@ import { OrderView } from "@/components/order-view";
 import { getOrder } from "@/orders/service";
 import { convertAmount } from "@/pricing/engine";
 import { fxFromConfig } from "@/catalog/sync";
+import { loadManualOverrides, resolveManualConfig } from "@/payments/manual-channels";
 import { loadPage, userSummary } from "@/runtime/page-context";
 
 export const dynamic = "force-dynamic";
@@ -45,6 +46,9 @@ export default async function OrderPage({
   const { context, locale, t, user, popups } = loaded.page;
   const order = await getOrder(context, id);
   if (!order) notFound();
+
+  // 渠道清单优先取后台运营态（收款码/账号可改），配置文件只是初始值。
+  const manualOverrides = await loadManualOverrides(context.db);
 
   const { config } = context;
   const isChain = order.payMethod === "chain";
@@ -125,7 +129,8 @@ export default async function OrderPage({
         manualPayment={
           isManual
             ? (() => {
-                const channel = config.payments.manual?.channels.find(
+                const manualConfig = resolveManualConfig(config, manualOverrides);
+                const channel = manualConfig?.channels.find(
                   (item) => item.id === order.payMethod,
                 );
                 if (!channel) return null;

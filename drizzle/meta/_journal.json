@@ -36,6 +36,13 @@
       "when": 1757830000000,
       "tag": "0004_auto-purchase",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1789461763136,
+      "tag": "0005_settings",
+      "breakpoints": true
     }
   ]
 }

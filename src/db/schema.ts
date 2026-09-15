@@ -479,3 +479,13 @@ export type Coupon = typeof coupons.$inferSelect;
 export type Announcement = typeof announcements.$inferSelect;
 export type Article = typeof articles.$inferSelect;
 export type Topup = typeof topups.$inferSelect;
+
+/**
+ * 通用站点设置：key → JSON 文档。
+ * 目前的键：manual_channels（人工收款渠道的运营态覆盖，后台可改）。
+ */
+export const settings = sqliteTable("settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});

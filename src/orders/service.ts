@@ -9,6 +9,7 @@
 import { and, eq, sql } from "drizzle-orm";
 
 import { findProduct, fxFromConfig } from "@/catalog/sync";
+import { loadManualOverrides, resolveManualConfig } from "@/payments/manual-channels";
 import { manualUnitPrice } from "@/pricing/engine";
 import { isPlaceholderAddress } from "@/config/schema";
 import { orderEvents, orders, type Order } from "@/db/schema";
@@ -131,7 +132,8 @@ export async function createOrder(
   }
 
   // —— 手动收款渠道（支付宝/微信转账）：管理员确认到账后照走自动采购 ——
-  const manualConfig = config.payments.manual?.enabled ? config.payments.manual : undefined;
+  // 渠道清单优先取后台运营态（收款码/账号可改），配置文件只是初始值。
+  const manualConfig = resolveManualConfig(config, await loadManualOverrides(context.db)) ?? undefined;
   const manualChannel =
     payMethod !== "chain" && payMethod !== "balance"
       ? manualConfig?.channels.find((item) => item.id === payMethod) ?? null
