@@ -13,6 +13,7 @@ import { and, eq, inArray, or, sql } from "drizzle-orm";
 import type { DaichongContext } from "@/runtime/context";
 import { categories, products, type Category, type Product } from "@/db/schema";
 import { quotePrice, resolveMarkup, type FxSnapshot } from "@/pricing/engine";
+import { fxSnapshot } from "@/pricing/fx";
 import type { SupplierCategory, SupplierProduct } from "@/supplier/types";
 
 export interface SyncReport {
@@ -29,22 +30,12 @@ export interface SyncReport {
 }
 
 /** 从配置构造汇率快照。静态汇率用 updatedAt 作为采集时间。 */
-export function fxFromConfig(context: DaichongContext): FxSnapshot {
-  const { fx } = context.config.pricing;
-
-  if (fx.source === "static") {
-    return {
-      rates: fx.rates,
-      // 没写 updatedAt 就当作"刚刚采集"—— 否则所有人首次部署都会因为
-      // 陈旧检查而全站无货，这个失败模式太难自查了。README 里会说明
-      // 建议填上 updatedAt 以便让陈旧保护真正生效。
-      fetchedAt: fx.updatedAt ? new Date(fx.updatedAt) : new Date(),
-    };
-  }
-
-  // coingecko 等动态源尚未接入；走到这里说明配置允许但实现未就绪，
-  // 返回空汇率会让定价引擎以 missing_rate 拒绝上架 —— 这是安全的失败方向。
-  return { rates: {}, fetchedAt: new Date(0) };
+/**
+ * 汇率快照 —— 动态源（settings 缓存 + 现场自愈）优先，静态配置兜底。
+ * 见 src/pricing/fx.ts 的口径与降级顺序说明。
+ */
+export async function fxFromConfig(context: DaichongContext): Promise<FxSnapshot> {
+  return (await fxSnapshot(context)) as FxSnapshot;
 }
 
 /**
@@ -95,7 +86,7 @@ export async function syncSupplier(
     };
   }
 
-  const fx = fxFromConfig(context);
+  const fx = await fxFromConfig(context);
   const displayCurrency = context.config.store.currency;
   const syncedAt = now.toISOString();
 

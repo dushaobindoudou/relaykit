@@ -128,7 +128,7 @@ export default async function OrderPage({
         payWindowEndsAt={order.payWindowEndsAt ?? ""}
         manualPayment={
           isManual
-            ? (() => {
+            ? await (async () => {
                 const manualConfig = resolveManualConfig(config, manualOverrides);
                 const channel = manualConfig?.channels.find(
                   (item) => item.id === order.payMethod,
@@ -142,7 +142,7 @@ export default async function OrderPage({
                   instructions: channel.instructions ?? null,
                   amountCny: convertAmount(
                     order.priceTotal,
-                    fxFromConfig(context).rates,
+                    (await fxFromConfig(context)).rates,
                     config.store.currency,
                     "CNY",
                   ),

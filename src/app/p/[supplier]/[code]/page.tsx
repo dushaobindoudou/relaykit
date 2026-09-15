@@ -99,7 +99,7 @@ export default async function ProductPage({ params }: Params) {
                 cost: product.cost,
                 baseRetailPrice: product.price,
                 tierUnitPrice: variant.price,
-                rates: fxFromConfig(context).rates,
+                rates: (await fxFromConfig(context)).rates,
                 fromCurrency:
                   config.suppliers.find((item) => item.id === entry.supplierId)?.currency ?? "CNY",
                 toCurrency: config.store.currency,

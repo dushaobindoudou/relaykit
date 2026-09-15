@@ -65,7 +65,7 @@ export async function GET(): Promise<Response> {
   }
 
   // —— 汇率新鲜度 ——
-  const fx = fxFromConfig(context);
+  const fx = await fxFromConfig(context);
   const ageHours = (Date.now() - fx.fetchedAt.getTime()) / 3_600_000;
   const maxAge = context.config.pricing.maxStalenessHours;
   const fxOk = maxAge === 0 || ageHours <= maxAge;

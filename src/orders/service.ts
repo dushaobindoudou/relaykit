@@ -199,7 +199,7 @@ export async function createOrder(
         cost: product.cost,
         baseRetailPrice: product.price,
         tierUnitPrice,
-        rates: fxFromConfig(context).rates,
+        rates: (await fxFromConfig(context)).rates,
         fromCurrency:
           context.config.suppliers.find((item) => item.id === input.supplierId)?.currency ?? "CNY",
         toCurrency: config.store.currency,

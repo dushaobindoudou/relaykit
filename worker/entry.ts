@@ -22,6 +22,7 @@ import { syncAll } from "@/catalog/sync";
 import { expireStaleOrders, fulfillOrder } from "@/orders/service";
 import { settleUpstreamPurchases } from "@/orders/auto-purchase";
 import { watchAll } from "@/payments/watcher";
+import { refreshFx } from "@/pricing/fx";
 import { orders } from "@/db/schema";
 import { buildContext, type Bindings, type DaichongContext } from "@/runtime/context";
 import { eq } from "drizzle-orm";
@@ -87,6 +88,17 @@ async function runScheduled(cron: string, env: Bindings): Promise<void> {
     }
 
     case EVERY_15_MINUTES: {
+      // 汇率先行：同步流程里定价要用它，陈旧会整站下架。
+      // 动态汇率是显式的配置选择（source: coingecko）；静态配置自己管理时效。
+      if (context.config.pricing.fx.source === "coingecko") {
+        try {
+        const fx = await refreshFx(context.db);
+        console.log(`[cron] 汇率刷新 CNY_USDT=${fx.rate}（${fx.source}）`);
+        } catch (error) {
+          console.error(`[cron] 汇率刷新失败: ${error instanceof Error ? error.message : error}`);
+        }
+      }
+
       const reports = await syncAll(context);
       for (const report of reports) {
         if (report.error) {
