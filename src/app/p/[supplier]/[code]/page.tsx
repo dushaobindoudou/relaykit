@@ -12,6 +12,7 @@ import { notFound } from "next/navigation";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 
 import { findProduct, fxFromConfig, getCatalogEntry } from "@/catalog/sync";
+import { cnyNote } from "@/pricing/cny";
 import { sanitizeDescription } from "@/catalog/sanitize";
 import { isPlaceholderAddress } from "@/config/schema";
 import { loadManualOverrides, resolveManualConfig } from "@/payments/manual-channels";
@@ -82,6 +83,9 @@ export default async function ProductPage({ params }: Params) {
 
   // 手动收款渠道（支付宝/微信转账）：单价按成本口径重算（如 30%），
   // 与 createOrder 的算法同源 —— 页面展示价必须等于下单结算价。
+  // 人民币参考价汇率（动态源；一次快照整页共用）。
+  const fxRates = await fxFromConfig(context);
+  const cnyRate = fxRates.rates.CNY_USDT ?? null;
   const manualConfig = resolveManualConfig(config, await loadManualOverrides(context.db));
   const manualChannels = manualConfig?.channels.map((channel) => ({
     id: channel.id,
@@ -99,7 +103,7 @@ export default async function ProductPage({ params }: Params) {
                 cost: product.cost,
                 baseRetailPrice: product.price,
                 tierUnitPrice: variant.price,
-                rates: (await fxFromConfig(context)).rates,
+                rates: fxRates.rates,
                 fromCurrency:
                   config.suppliers.find((item) => item.id === entry.supplierId)?.currency ?? "CNY",
                 toCurrency: config.store.currency,
@@ -236,6 +240,7 @@ export default async function ProductPage({ params }: Params) {
                       supplierId={entry.supplierId}
                       code={entry.code}
                       currency={currency}
+                      cnyRate={cnyRate}
                       variants={variantsWithManual}
                       chains={payableChains.map((chain) => ({ id: chain.id }))}
                       manual={manualChannels ? { channels: manualChannels, note: manualNote ?? "" } : null}

@@ -117,6 +117,8 @@ export function OrderView(props: {
   race: string;
   quantity: number;
   currency: string;
+  /** 人民币参考价「≈ ¥xx.xx」；null 表示汇率不可用，不展示。 */
+  payAmountCny: string | null;
   payAmount: string;
   payAddress: string;
   chainId: string;
@@ -326,6 +328,9 @@ export function OrderView(props: {
                   onClick={() => copyText("amount", props.payAmount)}
                 >
                   {props.payAmount} <span>{props.currency}</span>
+                  {props.payAmountCny && (
+                    <span className="amount-cny">{props.payAmountCny}</span>
+                  )}
                 </button>
                 <div className="address-label">{checkout.addressLabel}</div>
                 <button
@@ -489,6 +494,7 @@ export function OrderView(props: {
               <span>{copy.total}</span>
               <span className="meta-pill numeric">
                 {props.payAmount} {props.currency}
+                {props.payAmountCny ? ` ${props.payAmountCny}` : ""}
               </span>
             </div>
             <div className="meta-line">

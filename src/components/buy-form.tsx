@@ -14,6 +14,8 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
+import { cnyNote } from "@/pricing/cny";
+
 interface Variant {
   race: string;
   price: string;
@@ -66,6 +68,7 @@ export function BuyForm({
   supplierId,
   code,
   currency,
+  cnyRate,
   variants,
   chains,
   manual,
@@ -76,6 +79,8 @@ export function BuyForm({
   supplierId: string;
   code: string;
   currency: string;
+  /** 人民币参考价汇率（CNY_USDT）；null 则只显示 USDT 主价。 */
+  cnyRate: string | null;
   variants: Variant[];
   chains: { id: string }[];
   /** 手动收款渠道（支付宝/微信转账）。未启用为 null。 */
@@ -227,6 +232,9 @@ export function BuyForm({
                     <span className="tokyo-sku-prices">
                       <span className="tokyo-sku-current-price">
                         {variant.price} {currency}
+                        {cnyNote(variant.price, cnyRate) && (
+                          <span className="tokyo-price-cny">{cnyNote(variant.price, cnyRate)}</span>
+                        )}
                       </span>
                     </span>
                     <span className="tokyo-sku-name">{variant.race || labels.standard}</span>
@@ -403,6 +411,9 @@ export function BuyForm({
             )}
             <span className="tokyo-price-main numeric">
               {total} <small>{currency}</small>
+              {cnyNote(total, cnyRate) && (
+                <span className="tokyo-price-cny">{cnyNote(total, cnyRate)}</span>
+              )}
             </span>
           </div>
         </div>

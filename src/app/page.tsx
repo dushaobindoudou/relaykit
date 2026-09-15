@@ -10,6 +10,8 @@
 import Link from "next/link";
 
 import { listCatalog, type CatalogEntry } from "@/catalog/sync";
+import { fxFromConfig } from "@/catalog/sync";
+import { cnyNote } from "@/pricing/cny";
 import type { Category } from "@/db/schema";
 import { isPlaceholderAddress } from "@/config/schema";
 import { CategoryTree } from "@/components/category-tree";
@@ -119,7 +121,7 @@ function MobileCategoryPanel({
  * 商品行 —— 源站 Index.js 的行模板 1:1（thumb 背景图 + 名称 + pill 标签 +
  * 价格栈 + 库存 + 操作列）。售罄/预订状态挂在行类名上，配色交给主题。
  */
-function CommodityRow({ entry, t }: { entry: CatalogEntry; t: Dict }) {
+function CommodityRow({ entry, t, cnyRate }: { entry: CatalogEntry; t: Dict; cnyRate: string | null }) {
   const soldOut = entry.totalStock <= 0;
   const href = `/p/${entry.supplierId}/${encodeURIComponent(entry.code)}`;
   const rowState = soldOut ? (entry.reservable ? " is-reserve" : " is-soldout") : "";
@@ -155,7 +157,7 @@ function CommodityRow({ entry, t }: { entry: CatalogEntry; t: Dict }) {
             <span className="tokyo-commodity-name">{entry.name}</span>
             <span className="tokyo-commodity-tags">
               <span className="tokyo-pill tokyo-pill-mobile-meta tokyo-pill-mobile-only">
-                {entry.fromPrice} USDT
+                {entry.fromPrice} USDT{cnyNote(entry.fromPrice, cnyRate) ? ` ${cnyNote(entry.fromPrice, cnyRate)}` : ""}
               </span>
               {entry.deliveryWay === "auto" && (
                 <span className="tokyo-pill tokyo-pill-auto">{t.product.autoDelivery}</span>
@@ -176,6 +178,9 @@ function CommodityRow({ entry, t }: { entry: CatalogEntry; t: Dict }) {
         <span className="tokyo-commodity-price-stack">
           <span className="tokyo-commodity-price-main">{entry.fromPrice}</span>
           <span className="tokyo-commodity-price-note">USDT</span>
+          {cnyNote(entry.fromPrice, cnyRate) && (
+            <span className="tokyo-commodity-price-cny">{cnyNote(entry.fromPrice, cnyRate)}</span>
+          )}
         </span>
       </td>
       <td className="tokyo-commodity-muted" data-label={t.product.columnStock}>
@@ -237,6 +242,9 @@ export default async function Home({
       ]
     : undefined;
 
+  // 人民币参考价：整页共享一个汇率快照（动态源，见 pricing/fx.ts）。
+  const { rates } = await fxFromConfig(context);
+  const cnyRate = rates.CNY_USDT ?? null;
   const entries = await listCatalog(context, {
     ...(categoryFilter ? { categoryId: categoryFilter } : {}),
     ...(search ? { search } : {}),
@@ -336,6 +344,7 @@ export default async function Home({
                             key={`${entry.supplierId}:${entry.code}`}
                             entry={entry}
                             t={t}
+                            cnyRate={cnyRate}
                           />
                         ))
                       )}

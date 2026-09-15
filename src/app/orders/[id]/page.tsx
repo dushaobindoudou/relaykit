@@ -18,6 +18,7 @@ import { OrderView } from "@/components/order-view";
 import { getOrder } from "@/orders/service";
 import { convertAmount } from "@/pricing/engine";
 import { fxFromConfig } from "@/catalog/sync";
+import { cnyNote } from "@/pricing/cny";
 import { loadManualOverrides, resolveManualConfig } from "@/payments/manual-channels";
 import { loadPage, userSummary } from "@/runtime/page-context";
 
@@ -67,6 +68,9 @@ export default async function OrderPage({
   const o = t.order;
   // t.order 里新加了函数型文案（deadline/step1/...），整包传客户端组件
   // 会被 RSC 序列化拒收 —— 先剥掉函数，只留纯字符串键。
+  // 人民币参考价汇率（动态源，整页共用一个快照）。
+  const fxRates = await fxFromConfig(context);
+  const cnyRate = fxRates.rates.CNY_USDT ?? null;
   const orderCopy: Record<string, string> = {};
   for (const [key, value] of Object.entries(t.order)) {
     if (typeof value === "string") orderCopy[key] = value;
@@ -119,6 +123,7 @@ export default async function OrderPage({
         race={order.race}
         quantity={order.quantity}
         currency={order.currency}
+        payAmountCny={cnyNote(order.payAmount ?? order.priceTotal, cnyRate)}
         payAmount={order.payAmount ?? ""}
         payAddress={order.payAddress ?? ""}
         chainId={order.chainId ?? ""}
@@ -142,7 +147,7 @@ export default async function OrderPage({
                   instructions: channel.instructions ?? null,
                   amountCny: convertAmount(
                     order.priceTotal,
-                    (await fxFromConfig(context)).rates,
+                    fxRates.rates,
                     config.store.currency,
                     "CNY",
                   ),
