@@ -42,7 +42,9 @@ export async function getStoreMeta(): Promise<StoreMeta> {
 
     return {
       name: config.store.name,
-      description: `${config.store.name}. Digital goods delivered instantly, paid in ${config.store.currency}.`,
+      description:
+        config.store.description ??
+        `${config.store.name}. Digital goods delivered instantly, paid in ${config.store.currency}.`,
       currency: config.store.currency,
       locale: config.store.locale,
       baseUrl: config.store.baseUrl,

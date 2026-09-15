@@ -1,10 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <!--
-    品牌 mark：「A」= 一道向上的门拱 + 门闩横梁。
-    纯几何，16px 下依然清晰；深绿 #1C5F45 / 米白 #F7F5F2 是全站两个主色。
-    生成自 scripts 之外的确定性手写 SVG，不依赖任何位图。
-  -->
   <rect width="32" height="32" rx="7" fill="#1C5F45"/>
-  <path d="M9.5 22.5 L16 9.5 L22.5 22.5" fill="none" stroke="#F7F5F2" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M12.8 18.2 H19.2" fill="none" stroke="#F7F5F2" stroke-width="2.6" stroke-linecap="round"/>
+  <path d="M18.2 4 L10 17 H15.2 L13.6 22.5 L22.2 11.5 H16.6 Z" fill="#F7F5F2"/>
+  <path d="M9.5 25.5 H22.5" fill="none" stroke="#F7F5F2" stroke-width="2.6" stroke-linecap="round"/>
 </svg>

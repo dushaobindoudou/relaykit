@@ -50,6 +50,8 @@ export const storeSchema = z.object({
   supportEmail: z.string().email().optional(),
   /** 用于生成订单页绝对链接与 SEO canonical。 */
   baseUrl: z.string().url(),
+  /** 站点介绍（meta description）。留空则按店名自动生成。 */
+  description: z.string().min(1).optional(),
 });
 
 // ——————————————————————————————— 上游供货 ———————————————————————————————

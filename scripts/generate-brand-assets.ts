@@ -27,10 +27,9 @@ function markSvg(x: number, y: number, size: number): string {
   return `
   <g transform="translate(${x}, ${y})">
     <rect width="${size}" height="${size}" rx="${7 * s}" fill="${GREEN}"/>
-    <path d="M${9.5 * s} ${22.5 * s} L${16 * s} ${9.5 * s} L${22.5 * s} ${22.5 * s}"
-      fill="none" stroke="${CREAM}" stroke-width="${stroke}"
-      stroke-linecap="round" stroke-linejoin="round"/>
-    <path d="M${12.8 * s} ${18.2 * s} H${19.2 * s}"
+    <path d="M${18.2 * s} ${4 * s} L${10 * s} ${17 * s} H${15.2 * s} L${13.6 * s} ${22.5 * s} L${22.2 * s} ${11.5 * s} H${16.6 * s} Z"
+      fill="${CREAM}"/>
+    <path d="M${9.5 * s} ${25.5 * s} H${22.5 * s}"
       fill="none" stroke="${CREAM}" stroke-width="${stroke}" stroke-linecap="round"/>
   </g>`;
 }
@@ -57,8 +56,8 @@ async function generateOgCard(): Promise<void> {
                     fill: #1C5F45; }
       </style>
       ${markSvg(96, 140, 64)}
-      <text class="wordmark" x="96" y="330">DAICHONG</text>
-      <text class="tagline" x="96" y="396">Premium AI accounts, delivered in minutes.</text>
+      <text class="wordmark" x="96" y="330">AICHONGZHAN</text>
+      <text class="tagline" x="96" y="396">AI accounts &amp; codes, delivered automatically.</text>
       <text class="meta" x="96" y="500">USDT · POLYGON · BSC</text>
     </svg>`);
 

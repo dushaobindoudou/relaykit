@@ -15,6 +15,15 @@ export async function generateMetadata(): Promise<Metadata> {
     // %s 模板让每个商品页自动带上店名后缀，无需逐页重复。
     title: { default: store.name, template: `%s · ${store.name}` },
     description: store.description,
+    // 关键词矩阵与源站同构（同品类词），并补上我们的代充长尾。
+    keywords: [
+      "AI账号", "AI账号批发", "AI账号代充", "AI充值站",
+      "ChatGPT Plus账号", "GPT Plus代充值", "GPT Pro会员",
+      "Gemini Pro会员", "Gemini Ultra家庭组", "Claude Pro直充",
+      "Grok Super会员", "Cursor Pro账号", "Kiro Pro账号",
+      "CapCut Pro会员", "Kling会员", "谷歌邮箱", "Gmail老号",
+      "谷歌接码", "苹果ID", "AI会员低价开通",
+    ].join(","),
     metadataBase: store.baseUrl ? new URL(store.baseUrl) : undefined,
     icons: {
       // SVG 是现代浏览器的主 favicon；apple-touch 单独给位图（iOS 不认 SVG）。
