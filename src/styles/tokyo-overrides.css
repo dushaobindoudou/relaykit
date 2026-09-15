@@ -621,6 +621,7 @@ html.tokyo-modal-open,html.tokyo-modal-open body{overflow:hidden;}
 .help-article-content{max-width:880px;margin:0 auto;color:#303b4d;font-size:16px;line-height:1.9;overflow-wrap:anywhere}
 .help-article-content img{max-width:100%;height:auto}
 .help-article-content pre{overflow:auto;background:#f5f7fa;padding:14px;border-radius:4px}
+.help-article-content video{max-width:100%;height:auto;border-radius:6px;background:#162238}
 .help-article-content table{display:block;max-width:100%;overflow:auto;border-collapse:collapse}
 .help-article-content th,.help-article-content td{border:1px solid #dfe5ec;padding:8px}
 
