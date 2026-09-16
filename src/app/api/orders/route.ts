@@ -68,6 +68,8 @@ export async function POST(request: Request): Promise<Response> {
     contactEmail: email,
     queryPassword: password,
     payMethod,
+    // Stripe 渠道可用性由 createOrder 校验；密钥只经内存传递，绝不落库/日志。
+    ...(env.STRIPE_SECRET_KEY ? { stripeSecretKey: env.STRIPE_SECRET_KEY } : {}),
     user,
     ...(couponCode ? { couponCode } : {}),
   });

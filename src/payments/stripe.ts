@@ -58,7 +58,11 @@ export async function createCheckoutSession(input: {
     return { ok: false, error: "金额不合法" };
   }
   const cents = BigInt(whole) * 100n + BigInt(frac2);
+  // Stripe 硬性下限：总额按汇率换算后 ≥ $0.50（USD 计价即 50 美分）。
   if (cents <= 0n) return { ok: false, error: "金额不合法" };
+  if (input.currency === "usd" && cents < 50n) {
+    return { ok: false, error: "金额低于 Stripe 最低收款额（$0.50），请加购数量或换用其他支付方式" };
+  }
 
   const fields: Record<string, string> = {
     mode: "payment",
@@ -75,6 +79,8 @@ export async function createCheckoutSession(input: {
     "payment_method_types[0]": "card",
     "payment_method_types[1]": "alipay",
     "payment_method_types[2]": "wechat_pay",
+    // 浏览器跳转场景固定 web；缺这个字段微信支付会被 Stripe 拒绝。
+    "payment_method_options[wechat_pay][client]": "web",
   };
 
   const response = await fetch(`${API}/checkout/sessions`, {
