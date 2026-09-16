@@ -113,6 +113,7 @@ export const en = {
     noticeAgree: "I have read and confirm the above",
     noticeConfirm: "Confirm and continue",
     noticeCancel: "Cancel",
+    stripe: "Stripe (Card / Apple Pay / Alipay / WeChat)",
   },
   order: {
     checkoutTitle: "USDT secure payment",
@@ -137,6 +138,9 @@ export const en = {
     unitM: "m",
     unitS: "s",
     manualChannelLabel: "Manual transfer",
+    stripeNote:
+      "This order is paid via Stripe Checkout (card / Apple Pay / Google Pay / Alipay / WeChat Pay). Click the button to continue to the secure payment page.",
+    stripeButton: "Pay with Stripe",
     orderNumber: "Order",
     sendExactly: "Send exactly",
     left: "left",
@@ -381,6 +385,7 @@ export const zh: Dict = {
     noticeAgree: "我已阅读并确认以上内容",
     noticeConfirm: "确认并继续支付",
     noticeCancel: "取消",
+    stripe: "Stripe（卡 / Apple Pay / 支付宝 / 微信）",
   },
   order: {
     checkoutTitle: "USDT 安全收款",
@@ -405,6 +410,8 @@ export const zh: Dict = {
     unitM: "分",
     unitS: "秒",
     manualChannelLabel: "人工转账",
+    stripeNote: "本订单通过 Stripe 收银台支付（支持卡 / Apple Pay / Google Pay / 支付宝 / 微信支付）。点击按钮跳转到安全支付页面。",
+    stripeButton: "去 Stripe 支付",
     orderNumber: "订单号",
     sendExactly: "请转入准确金额",
     left: "后过期",

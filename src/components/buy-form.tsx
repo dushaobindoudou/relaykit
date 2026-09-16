@@ -31,6 +31,7 @@ interface Variant {
  * 而函数不能跨 RSC 边界序列化 —— 传了会在运行时静默变成 undefined。
  */
 export interface BuyLabels {
+  stripe: string;
   option: string;
   standard: string;
   quantity: string;
@@ -69,6 +70,7 @@ export function BuyForm({
   code,
   currency,
   cnyRate,
+  stripeEnabled = false,
   variants,
   chains,
   manual,
@@ -81,6 +83,8 @@ export function BuyForm({
   currency: string;
   /** 人民币参考价汇率（CNY_USDT）；null 则只显示 USDT 主价。 */
   cnyRate: string | null;
+  /** Stripe Checkout 可用（已启用且有密钥）。 */
+  stripeEnabled?: boolean;
   variants: Variant[];
   chains: { id: string }[];
   /** 手动收款渠道（支付宝/微信转账）。未启用为 null。 */
@@ -110,7 +114,8 @@ export function BuyForm({
   const [checkingCoupon, setCheckingCoupon] = useState(false);
 
   const selected = variants.find((item) => item.race === race) ?? variants[0];
-  const isManual = payMethod !== "chain" && payMethod !== "balance";
+  const isStripe = payMethod === "stripe";
+  const isManual = payMethod !== "chain" && payMethod !== "balance" && !isStripe;
   // 手动收款渠道按成本口径单独计价（30%），切渠道时总价跟着切。
   const unitPrice = isManual
     ? Number(selected?.manualPrice ?? selected?.price ?? 0)
@@ -374,6 +379,21 @@ export function BuyForm({
                 <span className="tokyo-sku-name">
                   {labels.payWithBalance}
                   <span className="tokyo-sku-current-price ms-1">{balance}</span>
+                </span>
+              </label>
+            )}
+            {stripeEnabled && (
+              <label className={chainPill(payMethod === "stripe")}>
+                <input
+                  type="radio"
+                  name="payMethod"
+                  className="sr-only"
+                  checked={payMethod === "stripe"}
+                  onChange={() => setPayMethod("stripe")}
+                />
+                <span className="tokyo-sku-name">
+                  <i className="fa-brands fa-stripe-s me-1" aria-hidden />
+                  {labels.stripe}
                 </span>
               </label>
             )}

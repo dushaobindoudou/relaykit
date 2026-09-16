@@ -15,6 +15,8 @@ import QRCode from "qrcode";
 
 import { StoreHeader } from "@/components/storefront";
 import { OrderView } from "@/components/order-view";
+import { getCloudflareContext } from "@opennextjs/cloudflare";
+
 import { getOrder } from "@/orders/service";
 import { convertAmount } from "@/pricing/engine";
 import { fxFromConfig } from "@/catalog/sync";
@@ -45,6 +47,7 @@ export default async function OrderPage({
   if (!loaded.ok) notFound();
 
   const { context, locale, t, user, popups } = loaded.page;
+  const { env } = getCloudflareContext();
   const order = await getOrder(context, id);
   if (!order) notFound();
 
@@ -54,6 +57,12 @@ export default async function OrderPage({
   const { config } = context;
   const isChain = order.payMethod === "chain";
   const isManual = order.payMethod !== "chain" && order.payMethod !== "balance";
+  const isStripe = order.payMethod === "stripe";
+  const stripeReady =
+    isStripe &&
+    order.status === "awaiting_payment" &&
+    config.payments.stripe?.enabled === true &&
+    Boolean(env.STRIPE_SECRET_KEY);
 
   // 收款地址 → 服务端生成二维码 SVG（客户端零依赖）。
   const qrSvg = isChain && order.payAddress
@@ -111,6 +120,19 @@ export default async function OrderPage({
         supportUrl={config.store.supportUrl ?? null}
         popups={popups}
       />
+
+      {stripeReady && (
+        <section className="panel stripe-pay-panel">
+          <div className="panel-body tokyo-description-body">
+            <p className="stripe-pay-note">{t.order.stripeNote}</p>
+            <form method="post" action={`/api/orders/${order.id}/stripe`}>
+              <button type="submit" className="tokyo-button tokyo-button-primary stripe-pay-button">
+                {t.order.stripeButton} {order.payAmount ?? order.priceTotal} USD
+              </button>
+            </form>
+          </div>
+        </section>
+      )}
 
       {/* 服务端只下发非敏感字段。卡密要凭口令另取，绝不在首屏 HTML 里。 */}
       <OrderView

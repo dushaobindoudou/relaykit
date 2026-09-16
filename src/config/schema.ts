@@ -272,6 +272,20 @@ export const paymentsSchema = z.object({
    * 默认 6：一万个槽位，够绝大多数店用；USDT 在主流链上也正好是 6 位精度。
    * 给小了会在高峰期分配不出唯一金额。
    */
+  /**
+   * Stripe Checkout（卡 / Apple Pay / Google Pay / 支付宝 / 微信支付）。
+   * 密钥走环境变量 STRIPE_SECRET_KEY / STRIPE_WEBHOOK_SECRET，
+   * 这里只管开关与展示币种 —— 没有密钥时 enabled 无效。
+   */
+  stripe: optionalSection(
+    z
+      .object({
+        enabled: z.boolean().default(false),
+        /** 收款币种：结算币 USDT ≈ USD 1:1，直接以 USD 收款。 */
+        currency: z.literal("usd").default("usd"),
+      })
+      .default({ enabled: false, currency: "usd" }),
+  ),
   amountTagging: optionalSection(
     z
       .object({

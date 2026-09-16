@@ -75,6 +75,11 @@ export default async function ProductPage({ params }: Params) {
   if (!entry) notFound();
 
   const { config } = context;
+
+  // Stripe 可用 = 配置开启 + 密钥已注入。
+  const stripeEnabled =
+    config.payments.stripe?.enabled === true &&
+    Boolean(getCloudflareContext().env.STRIPE_SECRET_KEY);
   const currency = config.store.currency;
 
   const payableChains = config.payments.chains.filter(
@@ -241,6 +246,7 @@ export default async function ProductPage({ params }: Params) {
                       code={entry.code}
                       currency={currency}
                       cnyRate={cnyRate}
+                      stripeEnabled={stripeEnabled}
                       variants={variantsWithManual}
                       chains={payableChains.map((chain) => ({ id: chain.id }))}
                       manual={manualChannels ? { channels: manualChannels, note: manualNote ?? "" } : null}
@@ -248,6 +254,7 @@ export default async function ProductPage({ params }: Params) {
                       reservable={reservableHere}
                       labels={{
                         option: t.buy.option,
+          stripe: t.buy.stripe,
                         standard: t.buy.standard,
                         quantity: t.buy.quantity,
                         email: t.buy.email,

@@ -35,6 +35,10 @@ interface CloudflareEnv {
   POLYGON_ADDRESS?: string;
   BSC_ADDRESS?: string;
   BASE_ADDRESS?: string;
+  /** Stripe REST 密钥（sk_live_… / sk_test_…）。未设置 = Stripe 渠道不可用。 */
+  STRIPE_SECRET_KEY?: string;
+  /** Stripe webhook 端点验签密钥（whsec_…）。 */
+  STRIPE_WEBHOOK_SECRET?: string;
   TRON_ADDRESS?: string;
 
   /** 告警通道（可选）。 */

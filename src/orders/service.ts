@@ -114,6 +114,8 @@ export interface CreateOrderInput {
   /** 登录用户。余额支付必须有。 */
   user?: User | null;
   couponCode?: string;
+  /** Stripe 收款可用时的密钥（由 API 路由从 env 注入，绝不落库）。 */
+  stripeSecretKey?: string;
 }
 
 export type CreateOrderResult =
@@ -134,11 +136,19 @@ export async function createOrder(
   // —— 手动收款渠道（支付宝/微信转账）：管理员确认到账后照走自动采购 ——
   // 渠道清单优先取后台运营态（收款码/账号可改），配置文件只是初始值。
   const manualConfig = resolveManualConfig(config, await loadManualOverrides(context.db)) ?? undefined;
+  // Stripe 是在线自动收款（webhook 确认），与手动对账渠道不同级。
+  const isStripe = payMethod === "stripe";
+  if (isStripe) {
+    const stripeConfig = config.payments.stripe;
+    if (!stripeConfig?.enabled || !input.stripeSecretKey) {
+      return { ok: false, error: "该收款方式不可用" };
+    }
+  }
   const manualChannel =
-    payMethod !== "chain" && payMethod !== "balance"
+    payMethod !== "chain" && payMethod !== "balance" && !isStripe
       ? manualConfig?.channels.find((item) => item.id === payMethod) ?? null
       : null;
-  if (payMethod !== "chain" && payMethod !== "balance" && !manualChannel) {
+  if (payMethod !== "chain" && payMethod !== "balance" && !isStripe && !manualChannel) {
     return { ok: false, error: "该收款方式不可用" };
   }
 
@@ -306,6 +316,38 @@ export async function createOrder(
     if (input.couponCode) {
       await couponService.redeem(context, input.couponCode, orderId, identity, discount);
     }
+
+    return { ok: true, order: row as unknown as Order };
+  }
+
+  // —— Stripe Checkout：在线自动收款（卡/Apple Pay/支付宝/微信）。
+  // 金额不打标（Stripe 用订单号对账，不需要唯一尾数），订单号同时写进
+  // client_reference_id 与 metadata；webhook 或回跳反查确认后 markPaid，
+  // 之后与链上单走同一条自动采购管线。价格与链上一致（默认加价 20%）。 ——
+  if (isStripe) {
+    const orderId = newOrderId();
+    const row = {
+      ...base,
+      id: orderId,
+      status: "awaiting_payment" as const,
+      requestNo: newRequestNo(),
+      // 客户实付金额 = 订单总额（USD 计价展示）；对账靠订单号不靠金额。
+      payAmount: total,
+      chainId: null,
+      payAddress: null,
+      payWindowEndsAt: windowEnd.toISOString(),
+    };
+
+    await context.db.insert(orders).values(row);
+    await context.db.insert(orderEvents).values({
+      orderId,
+      eventType: "payment_requested",
+      fromStatus: "draft",
+      toStatus: "awaiting_payment",
+      accepted: true,
+      detail: JSON.stringify({ stripe: true, amount: total }),
+      createdAt: now.toISOString(),
+    });
 
     return { ok: true, order: row as unknown as Order };
   }
