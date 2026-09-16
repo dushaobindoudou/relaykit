@@ -17,10 +17,12 @@ describe("各链参数", () => {
     assert.equal(CHAIN_SPECS.bsc?.decimals, 18);
   });
 
-  test("Ethereum / Polygon / Tron 的 USDT 都是 6 位", () => {
+  test("Ethereum / Polygon / Tron / Base 的 USDT 都是 6 位", () => {
     assert.equal(CHAIN_SPECS.ethereum?.decimals, 6);
     assert.equal(CHAIN_SPECS.polygon?.decimals, 6);
     assert.equal(CHAIN_SPECS.tron?.decimals, 6);
+    // Base 的官方 USDT（0xfde4…9bb2）合约链上实测 symbol=USDT decimals=6。
+    assert.equal(CHAIN_SPECS.base?.decimals, 6);
   });
 
   test("每条链都配了合约地址", () => {

@@ -36,26 +36,21 @@ describe("syncAll 未配置供应商清理", () => {
         syncedAt: new Date().toISOString(),
       },
     ]);
-    await db.insert(categories).values([
-      {
-        supplierId: "demo",
-        externalId: "c1",
-        name: "保留分类",
+    for (const cat of [
+      { supplierId: "demo", externalId: "c1", name: "保留分类" },
+      { supplierId: "ghost", externalId: "c2", name: "幽灵分类" },
+    ]) {
+      await db.insert(categories).values({
+        supplierId: cat.supplierId,
+        externalId: cat.externalId,
+        name: cat.name,
+        icon: null,
+        parentId: null,
         sort: 0,
         sellableCount: 0,
         syncedAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
-      {
-        supplierId: "ghost",
-        externalId: "c2",
-        name: "幽灵分类",
-        sort: 0,
-        sellableCount: 0,
-        syncedAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
-    ]);
+      });
+    }
 
     // mock 供应商同步失败没关系 —— 清理发生在适配器调用之前。
     await syncAll(context);

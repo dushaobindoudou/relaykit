@@ -60,6 +60,19 @@ export const CHAIN_SPECS: Record<string, ChainSpec> = {
     maxBlockRange: 2_000,
     blockSeconds: 3,
   },
+  base: {
+    chainId: 8453,
+    token: "0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2",
+    decimals: 6,
+    rpcUrls: [
+      "https://mainnet.base.org",
+      "https://base-rpc.publicnode.com",
+      "https://base.drpc.org",
+    ],
+    // Base 的公共节点对 getLogs 区间更保守，用小分片换稳。
+    maxBlockRange: 1_000,
+    blockSeconds: 2,
+  },
   ethereum: {
     chainId: 1,
     token: "0xdAC17F958D2ee523a2206206994597C13D831ec7",

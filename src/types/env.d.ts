@@ -34,6 +34,7 @@ interface CloudflareEnv {
   /** 收款地址。钱的去处，部署前务必核对。 */
   POLYGON_ADDRESS?: string;
   BSC_ADDRESS?: string;
+  BASE_ADDRESS?: string;
   TRON_ADDRESS?: string;
 
   /** 告警通道（可选）。 */

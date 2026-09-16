@@ -207,7 +207,7 @@ export const pricingSchema = z.object({
 // ———————————————————————————————— 收款 ————————————————————————————————
 
 export const chainSchema = z.object({
-  id: z.enum(["polygon", "bsc", "tron", "ethereum"]),
+  id: z.enum(["polygon", "bsc", "tron", "ethereum", "base"]),
   enabled: z.boolean().default(true),
   /**
    * 收款地址。**这是钱的去处，配错等于把收入送给别人**，部署前务必核对。
