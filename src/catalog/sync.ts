@@ -8,7 +8,7 @@
  * 但快照只用于**展示**。下单前的库存与价格必须现拉 —— 见 orders/service。
  */
 
-import { and, eq, inArray, or, sql } from "drizzle-orm";
+import { and, eq, inArray, notInArray, or, sql } from "drizzle-orm";
 
 import type { DaichongContext } from "@/runtime/context";
 import { categories, products, type Category, type Product } from "@/db/schema";
@@ -314,6 +314,15 @@ export async function syncAll(
   context: DaichongContext,
   now = new Date(),
 ): Promise<SyncReport[]> {
+  // 目录只允许包含配置里的供应商。历史遗留的行（比如早期接 mock 时的
+  // demo 商品）会原样挂在店面上卖 —— 客户下单我们根本无法履约。
+  // 每轮同步先做一次存在性清理，配置永远是对事实的唯一来源。
+  const configured = context.config.suppliers.map((supplier) => supplier.id);
+  if (configured.length > 0) {
+    await context.db.delete(products).where(notInArray(products.supplierId, configured));
+    await context.db.delete(categories).where(notInArray(categories.supplierId, configured));
+  }
+
   const reports: SyncReport[] = [];
   // 串行而非并发：上游通常是小站，几十个并发请求容易触发它的限流，
   // 而目录同步本来就不赶时间。
