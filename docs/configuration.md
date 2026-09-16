@@ -213,7 +213,7 @@ payments:
 可能吞掉整笔 1 USDT 的差价。** 建议优先引导前两者，TRC20 作为兜底
 （很多海外用户手里只有 TRC20）。
 
-支持状态：Polygon / BSC / Ethereum 的收款监听已实现；**TRON (TRC20) 尚未
+支持状态：Polygon / BSC / Base / Ethereum 的收款监听已实现（Base 的官方 USDT 合约已链上实测 decimals=6）；**TRON (TRC20) 尚未
 实现** —— 配置了会在健康检查里明确报错，而不是静默收不到钱。
 
 给上游打款同理：用**整笔预充余额**而不是按单转账，每单从余额扣，链上零手续费。

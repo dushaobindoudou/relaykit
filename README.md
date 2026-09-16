@@ -102,6 +102,15 @@ payments:
     - id: polygon
       address: "${POLYGON_ADDRESS}"
       confirmations: 30
+    - id: bsc
+      address: "${BSC_ADDRESS}"
+      confirmations: 15
+    - id: base
+      address: "${BASE_ADDRESS}"
+      confirmations: 20
+  stripe:
+    enabled: true                          # after STRIPE_* secrets below
+    currency: usd
 
 fulfillment:
   mode: auto                              # auto | manual
@@ -137,7 +146,11 @@ npx wrangler d1 create relaykit                      # paste the id into wrangle
 npx wrangler d1 migrations apply relaykit --remote
 npx wrangler r2 bucket create relaykit-media         # product image storage
 npx wrangler secret put ADMIN_TOKEN                  # openssl rand -hex 24
-npx wrangler secret put POLYGON_ADDRESS
+npx wrangler secret put POLYGON_ADDRESS              # same EVM address works on all three chains
+npx wrangler secret put BSC_ADDRESS
+npx wrangler secret put BASE_ADDRESS
+npx wrangler secret put STRIPE_SECRET_KEY            # optional: card / Apple Pay / Alipay / WeChat
+npx wrangler secret put STRIPE_WEBHOOK_SECRET        # from the Stripe webhook endpoint registration
 pnpm deploy
 ```
 
@@ -185,7 +198,10 @@ remaining gaps are all on the "full automation" side.
 | Catalog sync + storefront listing (sales badges, rich-text sanitizing) | ✅ Done |
 | D1 schema + migrations | ✅ Done |
 | Cloudflare deploy + Cron wiring | ✅ Done |
-| On-chain payment watcher (Polygon / BSC, multi-RPC fallback) | ✅ Done, 15 tests |
+| On-chain payment watcher (Polygon / BSC / Base, multi-RPC fallback) | ✅ Done, 15+ tests |
+| **Stripe Checkout** (card / Apple Pay / Alipay / WeChat Pay, webhook + return-path confirm) | ✅ Done, 10 tests |
+| **Dynamic FX** (CoinGecko with settings cache, self-healing, safe-fail) | ✅ Done, 8 tests |
+| **Dual-currency price display** (USDT primary + ¥ reference) | ✅ Done |
 | Checkout, order page, order lookup (EN/中文) | ✅ Done |
 | Accounts, balance ledger, top-ups, coupons | ✅ Done |
 | Backorders (pay to hold, self-serve refund to balance) | ✅ Done, 6 tests |
@@ -194,11 +210,11 @@ remaining gaps are all on the "full automation" side.
 | Image localization (R2 storage + webp compression) | ✅ Done — storefront never hotlinks the upstream image host |
 | Brand assets (logo / favicon / og share card) | ✅ Done, see docs/image-prompts.md |
 | **Support chat widget** | ✅ Done (set `store.supportUrl`) |
-| **Admin console UI** | ⬜ Not started (use `GET/POST /api/admin/orders` meanwhile) |
+| **Admin console UI** | ✅ Done (token-gated `/admin`: payment channels & QR upload) |
 | **TRON (TRC20) payment watching** | ⬜ Not started (fails loudly, not silently) |
 | **Browser end-to-end tests** | ⬜ Not started |
 
-You can deploy it today, take real USDT payments (Polygon / BSC), confirm them
+You can deploy it today, take real USDT payments (Polygon / BSC / Base) plus card & wallets via Stripe, confirm them
 on-chain, and fulfill automatically or by hand. What still stands between you
 and full automation is upstream credentials (app_id/app_key, see
 docs/upstream-access.md) — not storefront code.

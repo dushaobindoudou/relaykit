@@ -14,7 +14,14 @@ ADMIN_TOKEN=""
 # 未设置时站点仍可启动（演示模式），但 /api/health 会标红且下单会被拒绝。
 POLYGON_ADDRESS=""
 BSC_ADDRESS=""
+BASE_ADDRESS=""
 TRON_ADDRESS=""
+
+# —— Stripe Checkout（可选）：卡 / Apple Pay / Google Pay / 支付宝 / 微信 ——
+# 密钥与 webhook 验签密钥都就位、Stripe 后台注册好 webhook 后再开
+# daichong.config.yaml 里的 payments.stripe.enabled。
+STRIPE_SECRET_KEY=""
+STRIPE_WEBHOOK_SECRET=""
 
 # —— 上游凭据：relaykit.config.yaml 里 driver 为 acgfaka 时必填 ——
 # 向上游站长申请，并请其为要转售的商品开启「开放对接」。

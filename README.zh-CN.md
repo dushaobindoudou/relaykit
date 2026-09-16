@@ -94,6 +94,15 @@ payments:
     - id: polygon
       address: "${POLYGON_ADDRESS}"
       confirmations: 30
+    - id: bsc
+      address: "${BSC_ADDRESS}"
+      confirmations: 15
+    - id: base
+      address: "${BASE_ADDRESS}"
+      confirmations: 20
+  stripe:
+    enabled: true                          # STRIPE_* 密钥就位后开启
+    currency: usd
 
 fulfillment:
   mode: auto                              # auto | manual
@@ -127,7 +136,11 @@ npx wrangler d1 create relaykit                      # 把 id 填进 wrangler.js
 npx wrangler d1 migrations apply relaykit --remote
 npx wrangler r2 bucket create relaykit-media         # 商品图本地化存储
 npx wrangler secret put ADMIN_TOKEN                  # openssl rand -hex 24
-npx wrangler secret put POLYGON_ADDRESS
+npx wrangler secret put POLYGON_ADDRESS              # 同一个 EVM 地址三链通用
+npx wrangler secret put BSC_ADDRESS
+npx wrangler secret put BASE_ADDRESS
+npx wrangler secret put STRIPE_SECRET_KEY            # 可选：卡 / Apple Pay / 支付宝 / 微信
+npx wrangler secret put STRIPE_WEBHOOK_SECRET        # Stripe 后台注册 webhook 后获得
 pnpm deploy
 ```
 
@@ -175,7 +188,10 @@ pnpm deploy
 | 商品同步 + 店面列表（含销量、富文本清洗） | ✅ 完成 |
 | D1 表结构与迁移 | ✅ 完成 |
 | Cloudflare 部署 + Cron 接线 | ✅ 完成 |
-| 链上收款监听（Polygon / BSC，多端点回退） | ✅ 完成，15 个测试 |
+| 链上收款监听（Polygon / BSC / Base，多端点回退） | ✅ 完成，15+ 个测试 |
+| **Stripe Checkout**（卡 / Apple Pay / 支付宝 / 微信，webhook + 回跳双确认） | ✅ 完成，10 个测试 |
+| **动态汇率**（CoinGecko + settings 缓存，自愈、安全失败） | ✅ 完成，8 个测试 |
+| **双币价格展示**（USDT 主价 + ¥ 人民币参考） | ✅ 完成 |
 | 结账、订单页、订单查询（双语） | ✅ 完成 |
 | 账号体系、余额账本、充值、优惠券 | ✅ 完成 |
 | 预订（缺货占位、自助退余额） | ✅ 完成，6 个测试 |
@@ -188,7 +204,7 @@ pnpm deploy
 | **TRON (TRC20) 收款监听** | ⬜ 未开始（明确报错，不静默） |
 | **端到端浏览器测试** | ⬜ 未开始 |
 
-现在部署可以真实收款（USDT，Polygon / BSC）、自动确认、按配置自动或人工发货。
+现在部署可以真实收款（USDT：Polygon / BSC / Base，Stripe 卡/钱包/支付宝/微信）、自动确认、按配置自动或人工发货。
 距离「全自动」还差的是上游对接凭据（app_id/app_key，见 docs/upstream-access.md），
 不是店面代码。
 
