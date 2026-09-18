@@ -18,7 +18,7 @@
 
 ### 用法
 
-- 店铺展示名（页头/页脚/元数据）：`代充` —— 在 `daichong.config.yaml` 的 `store.name`
+- 店铺展示名（页头/页脚/元数据）：`代充` —— 在 `buyrelay.config.yaml` 的 `store.name`
 - 拉丁词标（og 卡、纯 ASCII 场景）：`DAICHONG`，全大写，字距正常
 - 一句话介绍（英）：AI accounts & codes, delivered automatically
 - 一句话介绍（中）：AI 账号与接码代充，付款即自动发货

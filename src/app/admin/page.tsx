@@ -22,7 +22,7 @@ interface Channel {
   enabled: boolean;
 }
 
-const TOKEN_KEY = "daichong_admin_token";
+const TOKEN_KEY = "buyrelay_admin_token";
 
 /** 压缩成最长边 640px 的 PNG data URI（二维码保持锐利）。 */
 function fileToDataUrl(file: File): Promise<string> {

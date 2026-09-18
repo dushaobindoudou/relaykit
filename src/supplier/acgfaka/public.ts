@@ -187,7 +187,7 @@ export class AcgFakaPublicAdapter implements SupplierAdapter {
   async connect(): Promise<{ shopName: string; balance: Decimal }> {
     // 公开目录没有账户概念。用分类接口作为连通性探针，余额恒为 0 ——
     // 余额水位告警在这个模式下没有意义（我们不通过上游账户扣款）。
-    const categories = await this.#getJson<unknown[]>("/user/api/index/data");
+    await this.#getJson<unknown[]>("/user/api/index/data");
     return {
       shopName: `${new URL(this.#domain).host}（公开目录，只读）`,
       balance: "0",

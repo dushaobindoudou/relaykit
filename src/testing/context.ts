@@ -13,11 +13,11 @@ import { join } from "node:path";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 
-import type { DaichongConfig } from "@/config/schema";
+import type { BuyRelayConfig } from "@/config/schema";
 import { loadConfig } from "@/config/load";
 import * as schema from "@/db/schema";
 import { MockAdapter } from "@/supplier/mock/adapter";
-import type { DaichongContext } from "@/runtime/context";
+import type { BuyRelayContext } from "@/runtime/context";
 import type { SupplierAdapter } from "@/supplier/types";
 
 const MIGRATIONS_DIR = "drizzle";
@@ -40,7 +40,7 @@ function migrate(db: Database.Database): void {
 }
 
 export interface TestContextOptions {
-  config?: Partial<DaichongConfig>;
+  config?: Partial<BuyRelayConfig>;
   supplier?: SupplierAdapter;
 }
 
@@ -59,7 +59,7 @@ const BASE_RAW = {
   },
 };
 
-export interface TestContext extends DaichongContext {
+export interface TestContext extends BuyRelayContext {
   /** 直接操作底层库，便于在测试里塞入前置数据。 */
   raw: Database.Database;
   close(): void;
@@ -72,7 +72,7 @@ export function createTestContext(options: TestContextOptions = {}): TestContext
   migrate(sqlite);
 
   const config = loadConfig({ raw: structuredClone(BASE_RAW), env: {} });
-  const merged = { ...config, ...options.config } as DaichongConfig;
+  const merged = { ...config, ...options.config } as BuyRelayConfig;
 
   const suppliers = new Map<string, SupplierAdapter>([
     ["demo", options.supplier ?? new MockAdapter()],
@@ -115,7 +115,7 @@ export function createTestContext(options: TestContextOptions = {}): TestContext
 
   return {
     config: merged,
-    db: withBatch as unknown as DaichongContext["db"],
+    db: withBatch as unknown as BuyRelayContext["db"],
     suppliers,
     secrets: {},
     raw: sqlite,

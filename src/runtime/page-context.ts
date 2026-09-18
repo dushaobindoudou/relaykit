@@ -15,10 +15,10 @@ import { resolveSession, SESSION_COOKIE } from "@/accounts/auth";
 import { announcements, type Announcement, type Category, type User } from "@/db/schema";
 import { getI18n } from "@/i18n";
 import type { Dict, Locale } from "@/i18n/dictionary";
-import { buildContext, type Bindings, type DaichongContext } from "@/runtime/context";
+import { buildContext, type Bindings, type BuyRelayContext } from "@/runtime/context";
 
 export interface PageContext {
-  context: DaichongContext;
+  context: BuyRelayContext;
   locale: Locale;
   t: Dict;
   user: User | null;

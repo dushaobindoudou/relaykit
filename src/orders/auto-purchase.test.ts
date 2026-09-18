@@ -7,7 +7,7 @@
  */
 
 import assert from "node:assert/strict";
-import { afterEach, beforeEach, describe, test } from "vitest";
+import { afterEach, describe, test } from "vitest";
 
 import {
   createOrder,

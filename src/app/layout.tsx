@@ -57,7 +57,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <head>
         {/* Bootstrap（MIT）与 Font Awesome Free（OFL/CC BY）自托管：
             视觉基线与源站一致，但不依赖它的 CDN。 */}
+        {/* eslint-disable-next-line @next/next/no-css-tags -- vendor 产物不能走打包导入 */}
         <link rel="stylesheet" href="/vendor/css/bootstrap.min.css" />
+        {/* eslint-disable-next-line @next/next/no-css-tags -- vendor 产物不能走打包导入 */}
         <link rel="stylesheet" href="/vendor/fontawesome/all.min.css" />
         {/* Bootstrap 折叠菜单 JS：<1200px 导航汉堡开关靠它（源站同样加载） */}
         <script defer src="/vendor/js/bootstrap.bundle.min.js" />

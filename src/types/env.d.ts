@@ -14,7 +14,7 @@ interface CloudflareEnv {
   /** 管理端点鉴权（/api/admin/*）。未设置时管理端点一律拒绝服务。 */
   ADMIN_TOKEN?: string;
 
-  /** 上游凭据。driver 为 acgfaka 时必填，由 daichong.config.yaml 用 ${} 引用。 */
+  /** 上游凭据。driver 为 acgfaka 时必填，由 buyrelay.config.yaml 用 ${} 引用。 */
   SUPPLIER_APP_ID?: string;
   SUPPLIER_APP_KEY?: string;
 

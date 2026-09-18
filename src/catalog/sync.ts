@@ -10,7 +10,7 @@
 
 import { and, eq, inArray, notInArray, or, sql } from "drizzle-orm";
 
-import type { DaichongContext } from "@/runtime/context";
+import type { BuyRelayContext } from "@/runtime/context";
 import { categories, products, type Category, type Product } from "@/db/schema";
 import { quotePrice, resolveMarkup, type FxSnapshot } from "@/pricing/engine";
 import { fxSnapshot } from "@/pricing/fx";
@@ -34,7 +34,7 @@ export interface SyncReport {
  * 汇率快照 —— 动态源（settings 缓存 + 现场自愈）优先，静态配置兜底。
  * 见 src/pricing/fx.ts 的口径与降级顺序说明。
  */
-export async function fxFromConfig(context: DaichongContext): Promise<FxSnapshot> {
+export async function fxFromConfig(context: BuyRelayContext): Promise<FxSnapshot> {
   return (await fxSnapshot(context)) as FxSnapshot;
 }
 
@@ -51,7 +51,7 @@ export interface PrefetchedCatalog {
 }
 
 export async function syncSupplier(
-  context: DaichongContext,
+  context: BuyRelayContext,
   supplierId: string,
   now = new Date(),
   prefetched?: PrefetchedCatalog,
@@ -185,7 +185,7 @@ export async function syncSupplier(
  * 而且上游临时抽风漏返商品时，保留行比丢数据安全。
  */
 async function delistMissing(
-  context: DaichongContext,
+  context: BuyRelayContext,
   supplierId: string,
   syncedAt: string,
 ): Promise<number> {
@@ -211,7 +211,7 @@ async function delistMissing(
  * 侧栏若照样展示，客户点进去看到的是空列表。
  */
 async function syncCategories(
-  context: DaichongContext,
+  context: BuyRelayContext,
   supplierId: string,
   source:
     | { listCategories(): Promise<SupplierCategory[]> }
@@ -283,7 +283,7 @@ function productMeta(product: SupplierProduct) {
   };
 }
 
-async function upsert(context: DaichongContext, row: ProductRow): Promise<void> {
+async function upsert(context: BuyRelayContext, row: ProductRow): Promise<void> {
   await context.db
     .insert(products)
     .values(row)
@@ -311,7 +311,7 @@ async function upsert(context: DaichongContext, row: ProductRow): Promise<void> 
 
 /** 同步全部已配置的上游。 */
 export async function syncAll(
-  context: DaichongContext,
+  context: BuyRelayContext,
   now = new Date(),
 ): Promise<SyncReport[]> {
   // 目录只允许包含配置里的供应商。历史遗留的行（比如早期接 mock 时的
@@ -333,7 +333,7 @@ export async function syncAll(
 }
 
 /** 店面列表：只取可售的。 */
-export async function listSellable(context: DaichongContext) {
+export async function listSellable(context: BuyRelayContext) {
   return context.db.select().from(products).where(eq(products.sellable, true));
 }
 
@@ -344,7 +344,7 @@ export async function listSellable(context: DaichongContext) {
  * 例外：二级分类入选时，它的一级分类必须跟着出现（哪怕自己没有直挂商品，
  * sellableCount 为 0），否则树形侧栏里二级会悬空成无根的散点。
  */
-export async function listCategories(context: DaichongContext): Promise<Category[]> {
+export async function listCategories(context: BuyRelayContext): Promise<Category[]> {
   const rows = await context.db
     .select()
     .from(categories)
@@ -379,7 +379,7 @@ export async function listCategories(context: DaichongContext): Promise<Category
 }
 
 export async function findProduct(
-  context: DaichongContext,
+  context: BuyRelayContext,
   supplierId: string,
   code: string,
   race: string,
@@ -480,7 +480,7 @@ export interface CatalogFilter {
 }
 
 export async function listCatalog(
-  context: DaichongContext,
+  context: BuyRelayContext,
   filter: CatalogFilter = {},
 ): Promise<CatalogEntry[]> {
   const conditions = [eq(products.sellable, true)];
@@ -510,7 +510,7 @@ export async function listCatalog(
 
 /** 商品详情：同一 code 下的所有可售规格。 */
 export async function getCatalogEntry(
-  context: DaichongContext,
+  context: BuyRelayContext,
   supplierId: string,
   code: string,
 ): Promise<CatalogEntry | null> {

@@ -9,7 +9,7 @@
 
 ## 一、一键部署（推荐初次尝试）
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/dushaobindoudou/relaykit)
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/dushaobindoudou/buyrelay)
 
 点击后 Cloudflare 会：
 
@@ -19,7 +19,7 @@
 4. 构建并部署
 
 完成后站点跑的是**演示配置**（`mock` 上游、假商品）。要接真实上游，
-在你 fork 的仓库里编辑 `daichong.config.yaml` 然后推送即可，
+在你 fork 的仓库里编辑 `buyrelay.config.yaml` 然后推送即可，
 Cloudflare 会自动重新部署。
 
 > 一键部署会自动置备 D1，但 `wrangler.jsonc` 里的 `database_id` 是本仓库
@@ -35,7 +35,7 @@ Cloudflare 会自动重新部署。
 - 一个 Cloudflare 账号（免费即可）
 
 ```bash
-git clone https://github.com/dushaobindoudou/relaykit
+git clone https://github.com/dushaobindoudou/buyrelay
 cd relaykit
 pnpm install
 npx wrangler login
@@ -87,10 +87,10 @@ npx wrangler secret put SUPPLIER_APP_KEY
 ### 4. 写配置
 
 ```bash
-cp daichong.config.example.yaml daichong.config.yaml
+cp buyrelay.config.example.yaml buyrelay.config.yaml
 ```
 
-按 [配置参考](./configuration.md) 修改。**注意 `daichong.config.yaml` 在
+按 [配置参考](./configuration.md) 修改。**注意 `buyrelay.config.yaml` 在
 `.gitignore` 里** —— 它是你的店铺配置，示例文件才是仓库里那份。
 
 如果你 fork 之后想把自己的配置提交进去（这是支持的，密钥都是 `${}` 引用），
@@ -166,7 +166,7 @@ npx wrangler deploy --routes "shop.example.com/*"
 
 或在控制台里 Workers → relaykit → Settings → Domains & Routes 绑定。
 
-绑好之后记得把 `daichong.config.yaml` 的 `store.baseUrl` 改成新域名并重新
+绑好之后记得把 `buyrelay.config.yaml` 的 `store.baseUrl` 改成新域名并重新
 部署 —— 订单页的绝对链接和 SEO canonical 都取自它。
 
 ---

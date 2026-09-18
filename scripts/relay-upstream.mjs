@@ -8,7 +8,7 @@
  *
  * 用法：
  *   RELAY_SECRET=请生成一个长随机字符串 node scripts/relay-upstream.mjs
- *   # 然后在 daichong.config.yaml 里配置
+ *   # 然后在 buyrelay.config.yaml 里配置
  *   #   suppliers[0].relayUrl: "https://<你的中继域名>"
  *   # 并把同一个 RELAY_SECRET `wrangler secret put RELAY_SECRET`。
  *

@@ -1,5 +1,5 @@
 {
-  "name": "daichong",
+  "name": "buyrelay",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -20,7 +20,9 @@
     "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
     "build:config": "node scripts/build-config.mjs",
     "typecheck:worker": "tsc -p tsconfig.worker.json --noEmit",
-    "sync": "tsx scripts/sync-upstream.ts"
+    "sync": "tsx scripts/sync-upstream.ts",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
   },
   "dependencies": {
     "better-sqlite3": "^12.4.1",
@@ -36,6 +38,7 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.3.7",
     "@opennextjs/cloudflare": "^1.20.6",
     "@playwright/test": "^1.56.1",
     "@tailwindcss/postcss": "^4.1.18",
@@ -45,12 +48,15 @@
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.4",
     "drizzle-kit": "^0.31.6",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.3.5",
     "miniflare": "4.20260730.0",
     "postcss": "^8.5.6",
     "sharp": "^0.35.4",
     "tailwindcss": "^4.1.18",
     "tsx": "^4.23.13",
     "typescript": "^5.9.3",
+    "typescript-eslint": "^8.70.0",
     "undici": "^8.10.2",
     "vitest": "^3.2.4",
     "wrangler": "^4.131.0"

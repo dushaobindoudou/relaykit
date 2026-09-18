@@ -7,12 +7,12 @@ node_modules
 dist
 *.db
 *.db-journal
-daichong.config.yaml
+buyrelay.config.yaml
 src/config/generated.ts
 test-results
 playwright-report
 .vitest
 tsconfig.tsbuildinfo
 .wrangler
-daichong.config.*.yaml
-daichong.config.upstream.yaml
+buyrelay.config.*.yaml
+buyrelay.config.upstream.yaml

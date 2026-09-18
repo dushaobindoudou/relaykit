@@ -3,7 +3,7 @@
 **A self-hostable storefront for reselling digital goods.** Connect an upstream
 supplier, set your markup, take crypto payments, deliver automatically.
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/dushaobindoudou/relaykit)
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/dushaobindoudou/buyrelay)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 
 [中文文档](./README.zh-CN.md) · [Configuration](./docs/configuration.md) · [Deployment](./docs/deployment.md)
@@ -49,7 +49,7 @@ goods. You bring the supplier relationship and the receiving wallet.
 ## Quick start
 
 ```bash
-git clone https://github.com/dushaobindoudou/relaykit
+git clone https://github.com/dushaobindoudou/buyrelay
 cd relaykit
 pnpm install
 pnpm dev
@@ -62,12 +62,12 @@ http://localhost:3000/api/health for a diagnosis of your setup.
 To point it at a real supplier, copy the example config and edit it:
 
 ```bash
-cp daichong.config.example.yaml daichong.config.yaml
+cp buyrelay.config.example.yaml buyrelay.config.yaml
 ```
 
 ## Configuration
 
-Everything lives in `daichong.config.yaml`. Structure goes in the file; secrets
+Everything lives in `buyrelay.config.yaml`. Structure goes in the file; secrets
 stay in environment variables via `${VAR}` references, so the config file is
 safe to commit and safe to paste into an issue when you need help.
 
@@ -132,10 +132,10 @@ Full reference: **[docs/configuration.md](./docs/configuration.md)**.
 
 ### Cloudflare (one click)
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/dushaobindoudou/relaykit)
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/dushaobindoudou/buyrelay)
 
 Provisions the D1 database, prompts for the secrets declared in
-`.dev.vars.example`, and deploys. Then edit `daichong.config.yaml` in your fork
+`.dev.vars.example`, and deploys. Then edit `buyrelay.config.yaml` in your fork
 and push.
 
 ### Cloudflare (manual)

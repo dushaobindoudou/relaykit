@@ -16,7 +16,7 @@ import { z } from "zod";
 
 import * as schema from "@/db/schema";
 import { settings } from "@/db/schema";
-import type { DaichongConfig } from "@/config/schema";
+import type { BuyRelayConfig } from "@/config/schema";
 
 export const MANUAL_CHANNELS_KEY = "manual_channels";
 
@@ -83,9 +83,9 @@ export async function saveManualOverrides(
 
 /** 合并后的 manual 段（覆盖存在时替换 channels）；没有可用渠道时返回 null。 */
 export function resolveManualConfig(
-  config: DaichongConfig,
+  config: BuyRelayConfig,
   overrides: StoredChannel[] | null,
-): DaichongConfig["payments"]["manual"] | null {
+): BuyRelayConfig["payments"]["manual"] | null {
   const base = config.payments.manual;
   if (!base) return null;
   const source = overrides ?? base.channels.map((item) => ({ ...item, enabled: true }));

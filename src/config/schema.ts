@@ -331,7 +331,7 @@ export const configSchema = z.object({
   alerts: alertsSchema,
 });
 
-export type DaichongConfig = z.infer<typeof configSchema>;
+export type BuyRelayConfig = z.infer<typeof configSchema>;
 export type SupplierConfig = z.infer<typeof supplierSchema>;
 export type MarkupConfig = z.infer<typeof markupSchema>;
 export type PricingConfig = z.infer<typeof pricingSchema>;
@@ -355,7 +355,7 @@ export function isPlaceholderAddress(address: string): boolean {
 }
 
 /** 已配置好、可以真正收款的链。 */
-export function payableChains(config: DaichongConfig): ChainConfig[] {
+export function payableChains(config: BuyRelayConfig): ChainConfig[] {
   return config.payments.chains.filter(
     (chain) => chain.enabled && !isPlaceholderAddress(chain.address),
   );

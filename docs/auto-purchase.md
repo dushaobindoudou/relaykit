@@ -38,14 +38,14 @@ zhanghao66.com 前台 JS（ACG发卡 v3.6.0 Tokyo 主题），2026-09-14 全链�
      node scripts/relay-upstream.mjs
    ```
 
-   然后配置两边：`daichong.config.yaml` 的 `suppliers[].relayUrl` 指向它，
+   然后配置两边：`buyrelay.config.yaml` 的 `suppliers[].relayUrl` 指向它，
    并 `wrangler secret put RELAY_SECRET` 注入同一个密钥。
 
 2. **热钱包**：`wrangler secret put PAYOUT_WALLET_KEY` 注入 EVM 私钥。
    ⚠️ 这是能花钱的钥匙 —— 用**专用的、只放小金额**的钱包；它还需要在各链
    预存少量 gas 代币（Polygon 需 POL、BSC 需 BNB，每单成本不到 1 美分）。
 
-3. **供应商配置**：`daichong.config.yaml` 里
+3. **供应商配置**：`buyrelay.config.yaml` 里
 
    ```yaml
    suppliers:

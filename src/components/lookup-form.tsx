@@ -43,7 +43,7 @@ export function LookupForm({ labels }: { labels: LookupLabels }) {
         setError(labels.failed);
         return;
       }
-      sessionStorage.setItem(`daichong:order:${id}`, password);
+      sessionStorage.setItem(`buyrelay:order:${id}`, password);
       router.push(`/orders/${encodeURIComponent(id)}`);
     });
   }

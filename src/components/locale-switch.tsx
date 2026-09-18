@@ -17,7 +17,9 @@ export function LocaleSwitch({ current }: { current: Locale }) {
 
   function choose(next: Locale) {
     if (next === current) return;
-    document.cookie = `relaykit_lang=${next}; path=/; max-age=31536000; samesite=lax`;
+    // react-compiler 把全局 document 的属性写误判为非法变更；cookie 写是合法 DOM API。
+    // eslint-disable-next-line react-hooks/immutability
+    document.cookie = `buyrelay_lang=${next}; path=/; max-age=31536000; samesite=lax`;
     startTransition(() => router.refresh());
   }
 

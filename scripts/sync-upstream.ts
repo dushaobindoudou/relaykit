@@ -11,8 +11,8 @@
  * 用法：
  *   DAICHONG_ADMIN_TOKEN=xxx \
  *   pnpm tsx scripts/sync-upstream.ts \
- *     --config daichong.config.upstream.yaml \
- *     --site https://daichong.mergedao.workers.dev
+ *     --config buyrelay.config.upstream.yaml \
+ *     --site https://your-site.your-account.workers.dev
  *
  * 配 cron（每 15 分钟）即可让线上目录保持与上游同步。
  */
@@ -35,7 +35,6 @@ import type { SupplierCategory, SupplierProduct } from "@/supplier/types";
 import {
   applyImageRewrites,
   planCatalogImages,
-  normalizeRemoteImage,
   type MediaRewritable,
 } from "@/media/keys";
 
@@ -72,7 +71,7 @@ function parseArgs(): Args {
     return index >= 0 ? argv[index + 1] : undefined;
   };
 
-  const config = get("config") ?? "daichong.config.upstream.yaml";
+  const config = get("config") ?? "buyrelay.config.upstream.yaml";
   const token = get("token") ?? process.env.DAICHONG_ADMIN_TOKEN ?? "";
   let site = get("site") ?? "";
   const noImages = argv.includes("--no-images");

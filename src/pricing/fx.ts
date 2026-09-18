@@ -23,7 +23,7 @@ import { eq } from "drizzle-orm";
 import { Decimal } from "decimal.js";
 
 import { settings } from "@/db/schema";
-import type { DaichongContext } from "@/runtime/context";
+import type { BuyRelayContext } from "@/runtime/context";
 
 const FX_KEY = "fx_rates";
 /** 与健康检查的陈旧阈值一致。 */
@@ -86,7 +86,7 @@ export async function fetchCnyUsdt(): Promise<{ rate: string; source: string }> 
 }
 
 async function saveFx(
-  db: DaichongContext["db"],
+  db: BuyRelayContext["db"],
   rate: string,
   now: Date,
 ): Promise<void> {
@@ -103,7 +103,7 @@ async function saveFx(
 
 /** 抓取并写回 settings。cron 与请求路径的自愈共用。 */
 export async function refreshFx(
-  db: DaichongContext["db"],
+  db: BuyRelayContext["db"],
   now = new Date(),
 ): Promise<{ rate: string; source: string }> {
   const { rate, source } = await fetchCnyUsdt();
@@ -112,7 +112,7 @@ export async function refreshFx(
 }
 
 /** 汇率快照：动态源走 缓存→自愈→失败拒绝上架；静态源原样返回配置值。 */
-export async function fxSnapshot(context: DaichongContext, now = new Date()): Promise<FxSnapshot> {
+export async function fxSnapshot(context: BuyRelayContext, now = new Date()): Promise<FxSnapshot> {
   const fx = context.config.pricing.fx;
 
   if (fx.source === "static") {

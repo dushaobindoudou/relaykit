@@ -4,7 +4,7 @@
  * 设计取舍一：**结构进文件，密钥进环境变量**。
  * 配置文件是要提交进仓库、要能 diff、要能贴到 issue 里求助的；app_key 和
  * 收款地址不能在里面。所以任何字符串值都支持 ${VAR} 插值，
- * 让 daichong.config.yaml 可以安全地公开。
+ * 让 buyrelay.config.yaml 可以安全地公开。
  *
  * 设计取舍二：**运行时无关**。
  * 这个模块要同时跑在 Node（本地开发、测试、CLI）和 Cloudflare Workers（生产）上，
@@ -18,7 +18,7 @@
 
 import { parse as parseYaml } from "yaml";
 
-import { configSchema, type DaichongConfig } from "./schema";
+import { configSchema, type BuyRelayConfig } from "./schema";
 
 export class ConfigError extends Error {
   readonly issues: string[];
@@ -86,7 +86,7 @@ function formatIssues(error: import("zod").ZodError): string[] {
  * 跨字段的一致性检查 —— 这些约束 zod 的单字段校验管不到，
  * 但配错了同样会在生产上以"卖了货收不到钱"或"算错价"的形式爆出来。
  */
-function checkCrossFieldConsistency(config: DaichongConfig): string[] {
+function checkCrossFieldConsistency(config: BuyRelayConfig): string[] {
   const problems: string[] = [];
   const displayCurrency = config.store.currency;
 
@@ -183,14 +183,14 @@ function readConfigFile(path: string): string {
   } catch {
     throw new ConfigError(
       `读不到配置文件：${path}\n` +
-        `复制 daichong.config.example.yaml 改名为 daichong.config.yaml 即可开始。\n` +
+        `复制 buyrelay.config.example.yaml 改名为 buyrelay.config.yaml 即可开始。\n` +
         `（若这是在 Cloudflare Workers 上，说明构建期没有生成配置模块，` +
         `请检查 prebuild 是否执行了 scripts/build-config.mjs）`,
     );
   }
 }
 
-export function loadConfig(options: LoadOptions = {}): DaichongConfig {
+export function loadConfig(options: LoadOptions = {}): BuyRelayConfig {
   const envSource = options.env ?? defaultEnvSource();
 
   const source =
@@ -199,7 +199,7 @@ export function loadConfig(options: LoadOptions = {}): DaichongConfig {
       ? parseYamlOrThrow(options.text, "(inline)")
       : (() => {
           const path =
-            options.path ?? envSource.DAICHONG_CONFIG ?? "daichong.config.yaml";
+            options.path ?? envSource.DAICHONG_CONFIG ?? "buyrelay.config.yaml";
           return parseYamlOrThrow(readConfigFile(path), path);
         })());
 

@@ -9,7 +9,7 @@ import { drizzle, type DrizzleD1Database } from "drizzle-orm/d1";
 
 import { generatedRawConfig } from "@/config/generated";
 import { loadConfig, type EnvSource } from "@/config/load";
-import type { DaichongConfig } from "@/config/schema";
+import type { BuyRelayConfig } from "@/config/schema";
 import * as schema from "@/db/schema";
 import { createSuppliers } from "@/supplier/factory";
 import type { SupplierAdapter } from "@/supplier/types";
@@ -20,22 +20,22 @@ import type { SupplierAdapter } from "@/supplier/types";
  */
 export type Bindings = CloudflareEnv;
 
-export interface DaichongSecrets {
+export interface BuyRelaySecrets {
   /** 自动采购热钱包私钥。空 = 自动付款关闭，一律转人工。 */
   payoutWalletKey?: string;
   /** WAF 中继共享密钥。 */
   relaySecret?: string;
 }
 
-export interface DaichongContext {
-  config: DaichongConfig;
+export interface BuyRelayContext {
+  config: BuyRelayConfig;
   db: DrizzleD1Database<typeof schema>;
   suppliers: Map<string, SupplierAdapter>;
   /** 出款/中继等资金相关密钥的窄视图。别把整个 env 挂进上下文。 */
-  secrets: DaichongSecrets;
+  secrets: BuyRelaySecrets;
 }
 
-const cache = new WeakMap<object, DaichongContext>();
+const cache = new WeakMap<object, BuyRelayContext>();
 
 /**
  * 配置解析失败时不抛异常，而是把错误带出来。
@@ -45,7 +45,7 @@ const cache = new WeakMap<object, DaichongContext>();
  */
 export interface ContextResult {
   ok: boolean;
-  context?: DaichongContext;
+  context?: BuyRelayContext;
   error?: string;
 }
 
@@ -53,7 +53,7 @@ export function buildContext(env: Bindings): ContextResult {
   const cached = cache.get(env);
   if (cached) return { ok: true, context: cached };
 
-  let config: DaichongConfig;
+  let config: BuyRelayConfig;
   try {
     config = loadConfig({
       raw: structuredClone(generatedRawConfig),
@@ -74,7 +74,7 @@ export function buildContext(env: Bindings): ContextResult {
     };
   }
 
-  const context: DaichongContext = {
+  const context: BuyRelayContext = {
     config,
     db: drizzle(env.DB, { schema }),
     suppliers: createSuppliers(config.suppliers),

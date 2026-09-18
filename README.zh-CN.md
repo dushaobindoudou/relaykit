@@ -3,7 +3,7 @@
 **一套可自托管的数字商品转售店面。** 接上任意上游供货商，设定加价，收加密货币，
 自动发货。
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/dushaobindoudou/relaykit)
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/dushaobindoudou/buyrelay)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 
 [English](./README.md) · [配置参考](./docs/configuration.md) · [部署指南](./docs/deployment.md)
@@ -43,7 +43,7 @@
 ## 快速开始
 
 ```bash
-git clone https://github.com/dushaobindoudou/relaykit
+git clone https://github.com/dushaobindoudou/buyrelay
 cd relaykit
 pnpm install
 pnpm dev
@@ -55,12 +55,12 @@ pnpm dev
 接真实上游就复制示例配置改：
 
 ```bash
-cp daichong.config.example.yaml daichong.config.yaml
+cp buyrelay.config.example.yaml buyrelay.config.yaml
 ```
 
 ## 配置
 
-全部在 `daichong.config.yaml` 里。**结构进文件，密钥进环境变量** —— 任何字符串
+全部在 `buyrelay.config.yaml` 里。**结构进文件，密钥进环境变量** —— 任何字符串
 都支持 `${VAR}` 引用，所以这份配置文件可以放心提交进仓库、可以直接贴进 issue 求助。
 
 ```yaml
@@ -123,10 +123,10 @@ fulfillment:
 
 ### Cloudflare 一键部署
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/dushaobindoudou/relaykit)
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/dushaobindoudou/buyrelay)
 
 自动置备 D1 数据库、逐项提示填写 `.dev.vars.example` 里声明的密钥、构建并部署。
-之后在你 fork 的仓库里改 `daichong.config.yaml` 推送即可。
+之后在你 fork 的仓库里改 `buyrelay.config.yaml` 推送即可。
 
 ### Cloudflare 手动部署
 

@@ -75,7 +75,7 @@ curl -H "Authorization: Bearer $ADMIN_TOKEN" \
 
 ## 当前状态
 
-- 生效配置：`daichong.config.yaml`，用的是内置演示上游（`driver: mock`）
-- 真实上游配置：`daichong.config.upstream.yaml`，访问问题解决后改名即可启用
+- 生效配置：`buyrelay.config.yaml`，用的是内置演示上游（`driver: mock`）
+- 真实上游配置：`buyrelay.config.upstream.yaml`，访问问题解决后改名即可启用
 - 公开目录适配器（`driver: acgfaka-public`）代码已就绪并通过测试，
   只是当前环境下取不到数据

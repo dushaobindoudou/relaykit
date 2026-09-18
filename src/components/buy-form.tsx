@@ -103,7 +103,7 @@ export function BuyForm({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [payMethod, setPayMethod] = useState<string>("chain");
-  const [chainId, setChainId] = useState(chains[0]?.id ?? "");
+  const [chainId] = useState(chains[0]?.id ?? "");
   const [error, setError] = useState<string | null>(null);
   const [noticeOpen, setNoticeOpen] = useState(false);
   const [noticeAgreed, setNoticeAgreed] = useState(false);

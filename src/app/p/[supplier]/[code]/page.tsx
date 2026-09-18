@@ -7,12 +7,10 @@
  */
 
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 
 import { findProduct, fxFromConfig, getCatalogEntry } from "@/catalog/sync";
-import { cnyNote } from "@/pricing/cny";
 import { sanitizeDescription } from "@/catalog/sanitize";
 import { isPlaceholderAddress } from "@/config/schema";
 import { loadManualOverrides, resolveManualConfig } from "@/payments/manual-channels";
@@ -70,7 +68,7 @@ export default async function ProductPage({ params }: Params) {
   const loaded = await loadPage({ categories: false });
   if (!loaded.ok) notFound();
 
-  const { context, locale, t, user, banner , popups } = loaded.page;
+  const { context, locale, t, user, popups } = loaded.page;
   const entry = await getCatalogEntry(context, supplier, decodeURIComponent(code));
   if (!entry) notFound();
 
@@ -130,7 +128,6 @@ export default async function ProductPage({ params }: Params) {
   const soldOut = entry.totalStock <= 0;
   const reservableHere = soldOut && entry.reservable;
   /** 销量千分位：1 位数与 8 位数的可读性差在有没有逗号上。 */
-  const salesLabel = entry.salesCount !== null ? entry.salesCount.toLocaleString("en-US") : null;
 
   // 富文本进页面前先清洗：结构保留、表现剥光（内联样式/font 标签），
   // 脚本与危险协议一律丢弃。视觉由 .rte 主题接管 —— 上游的碎片样式

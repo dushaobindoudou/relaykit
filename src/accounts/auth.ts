@@ -9,7 +9,7 @@
 import { and, eq, gt } from "drizzle-orm";
 
 import { balanceTransactions, sessions, users, type User } from "@/db/schema";
-import type { DaichongContext } from "@/runtime/context";
+import type { BuyRelayContext } from "@/runtime/context";
 
 /**
  * 迭代参数。
@@ -122,7 +122,7 @@ function normalizeEmail(email: string): string {
 }
 
 async function issueSession(
-  context: DaichongContext,
+  context: BuyRelayContext,
   userId: string,
 ): Promise<string> {
   // token 明文只回给浏览器一次，库里只存哈希 —— 数据库被读到也无法冒充登录。
@@ -140,7 +140,7 @@ async function issueSession(
 }
 
 export async function register(
-  context: DaichongContext,
+  context: BuyRelayContext,
   email: string,
   password: string,
 ): Promise<AuthResult> {
@@ -177,7 +177,7 @@ export async function register(
 }
 
 export async function login(
-  context: DaichongContext,
+  context: BuyRelayContext,
   email: string,
   password: string,
 ): Promise<AuthResult> {
@@ -203,7 +203,7 @@ export async function login(
 }
 
 export async function resolveSession(
-  context: DaichongContext,
+  context: BuyRelayContext,
   token: string | undefined,
 ): Promise<User | null> {
   if (!token) return null;
@@ -224,7 +224,7 @@ export async function resolveSession(
 }
 
 export async function logout(
-  context: DaichongContext,
+  context: BuyRelayContext,
   token: string | undefined,
 ): Promise<void> {
   if (!token) return;
@@ -232,7 +232,7 @@ export async function logout(
 }
 
 /** 清理过期会话。挂在 Cron 上，否则 sessions 表只增不减。 */
-export async function pruneSessions(context: DaichongContext): Promise<void> {
+export async function pruneSessions(context: BuyRelayContext): Promise<void> {
   await context.db
     .delete(sessions)
     .where(gt(new Date().toISOString() as never, sessions.expiresAt));
@@ -240,7 +240,7 @@ export async function pruneSessions(context: DaichongContext): Promise<void> {
 
 /** 取一条余额流水的最新余额，用于并发下的一致性校验。 */
 export async function getUser(
-  context: DaichongContext,
+  context: BuyRelayContext,
   userId: string,
 ): Promise<User | null> {
   const rows = await context.db.select().from(users).where(eq(users.id, userId)).limit(1);

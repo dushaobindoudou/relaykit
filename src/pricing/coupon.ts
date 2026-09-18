@@ -11,7 +11,7 @@ import { Decimal } from "decimal.js";
 import { and, eq, sql } from "drizzle-orm";
 
 import { couponRedemptions, coupons, type Coupon } from "@/db/schema";
-import type { DaichongContext } from "@/runtime/context";
+import type { BuyRelayContext } from "@/runtime/context";
 
 export type CouponRejection =
   | "not_found"
@@ -52,7 +52,7 @@ function computeDiscount(coupon: Coupon, subtotal: Decimal): Decimal {
 }
 
 export async function validate(
-  context: DaichongContext,
+  context: BuyRelayContext,
   input: CouponContext,
 ): Promise<CouponCheck> {
   const now = input.now ?? new Date();
@@ -143,7 +143,7 @@ export async function validate(
  * 导致限量 100 张的券被用出 120 张。
  */
 export async function redeem(
-  context: DaichongContext,
+  context: BuyRelayContext,
   code: string,
   orderId: string,
   identity: string,
@@ -168,7 +168,7 @@ export async function redeem(
 
 /** 订单作废时回滚核销，把名额还回去。 */
 export async function release(
-  context: DaichongContext,
+  context: BuyRelayContext,
   orderId: string,
 ): Promise<void> {
   const rows = await context.db

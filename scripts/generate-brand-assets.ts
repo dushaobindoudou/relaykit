@@ -10,7 +10,7 @@
  * AI 负责氛围，代码负责排版，品牌字永远不会被 AI 写错。
  */
 
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 
 import sharp from "sharp";
 

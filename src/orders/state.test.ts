@@ -149,7 +149,7 @@ describe("预订流程", () => {
   }
 
   test("预订单的完整生命周期：付款占位 → 补货进货 → 交付", () => {
-    let status = reservedOrder();
+    const status = reservedOrder();
     assert.equal(status, "reserved");
 
     const started = transition(status, { type: "procurement_started" });

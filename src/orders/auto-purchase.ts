@@ -18,7 +18,7 @@
 
 import { and, eq, isNotNull } from "drizzle-orm";
 
-import type { DaichongContext } from "@/runtime/context";
+import type { BuyRelayContext } from "@/runtime/context";
 import { sendUsdt, chainFromLabel } from "@/payments/disburser";
 import {
   AcgFakaPurchaseClient,
@@ -48,7 +48,7 @@ export function setDisbursementExecutor(
 }
 
 export function buildPurchaseClient(
-  context: DaichongContext,
+  context: BuyRelayContext,
   supplier: SupplierConfig,
 ): AcgFakaPurchaseClient {
   return new AcgFakaPurchaseClient({
@@ -61,7 +61,7 @@ export function buildPurchaseClient(
 
 /** 订单所属供应商的自动采购配置；未启用返回 null（走适配器/人工路径）。 */
 export function getAutoPurchase(
-  context: DaichongContext,
+  context: BuyRelayContext,
   supplierId: string,
 ): SupplierConfig["autoPurchase"] | null {
   const supplier = context.config.suppliers.find((item) => item.id === supplierId);
@@ -87,7 +87,7 @@ export function batchSize(quantity: number, unitCostCny: number, minBatchCny: st
  * procurement_started），这里只做上游侧的事并把凭据记到订单上。
  */
 export async function startUpstreamPurchase(
-  context: DaichongContext,
+  context: BuyRelayContext,
   order: Order,
   autoPurchase: NonNullable<SupplierConfig["autoPurchase"]>,
 ): Promise<{ ok: boolean; status: OrderStatus; message: string }> {
@@ -169,7 +169,7 @@ interface SettleResult {
  * executor 参数仅供测试注入，运行时永远走真热钱包。
  */
 export async function settleUpstreamPurchases(
-  context: DaichongContext,
+  context: BuyRelayContext,
   options: { executor?: DisbursementExecutor; limit?: number } = {},
 ): Promise<SettleResult> {
   const doPay = options.executor ?? executor;
@@ -193,7 +193,7 @@ export async function settleUpstreamPurchases(
 type SettleOutcome = "delivered" | "flagged" | "waiting" | "failed";
 
 async function settleOne(
-  context: DaichongContext,
+  context: BuyRelayContext,
   order: Order,
   doPay: DisbursementExecutor,
 ): Promise<SettleOutcome> {
@@ -312,7 +312,7 @@ async function settleOne(
     );
     console.log(`[auto-purchase] 订单 ${order.id} 已从上游收货并交付`);
     return "delivered";
-  } catch (error) {
+  } catch {
     // 到账轮询接口对过期单直接返回非 200。此时无法区分「没付出去的单过期」
     // 与「付了款的单过期」—— handleExpired 按是否已有出款哈希分流：
     // 未付 → 重下；已付 → 资金去向不明，人工对账。
@@ -322,7 +322,7 @@ async function settleOne(
 }
 
 /** 上游订单消失（过期清理）。未付款 → 重新下单；已付款 → 人工对账。 */
-async function handleExpired(context: DaichongContext, order: Order): Promise<void> {
+async function handleExpired(context: BuyRelayContext, order: Order): Promise<void> {
   if (!order.upstreamPaidTxHash && order.upstreamAttempt < 3) {
     const autoPurchase = getAutoPurchase(context, order.supplierId);
     if (autoPurchase) {
@@ -342,7 +342,7 @@ async function handleExpired(context: DaichongContext, order: Order): Promise<vo
   }
 }
 
-async function markAmbiguous(context: DaichongContext, order: Order, reason: string): Promise<void> {
+async function markAmbiguous(context: BuyRelayContext, order: Order, reason: string): Promise<void> {
   await applyEvent(context, order, { type: "procurement_ambiguous", reason }, { reviewReason: reason });
 }
 
