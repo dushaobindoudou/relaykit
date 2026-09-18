@@ -16,3 +16,5 @@ tsconfig.tsbuildinfo
 .wrangler
 buyrelay.config.*.yaml
 buyrelay.config.upstream.yaml
+# 示例配置必须入库（新用户复制它开始）
+!buyrelay.config.example.yaml
